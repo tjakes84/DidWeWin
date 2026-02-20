@@ -1,0 +1,131 @@
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────
+const TEAMS = [
+  { id: '193', display: 'Miami University', emoji: '❤️', sub: 'RedHawks · MAC · Oxford, OH', cls: 'miami', vibe: 'love', tag: '💪 our team', confId: '15' },
+  { id: '153', display: 'Univ. of North Carolina', emoji: '💙', sub: 'Tar Heels · ACC', cls: 'unc', vibe: 'love', tag: '💙 our team', confId: '2' },
+  { id: '150', display: 'Dook 🤢', emoji: '🤮', sub: '💩 Blue Devils · ACC 💩', cls: 'duke', vibe: 'hate', tag: '🗑️ boo 🤮', confId: '2' },
+];
+
+const confStandingsCache = {};
+
+async function getConfRecord(teamId, confId) {
+  if (!confStandingsCache[confId]) {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/standings?group=${confId}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return '';
+    confStandingsCache[confId] = await res.json();
+  }
+
+  const data = confStandingsCache[confId];
+
+  for (const group of (data?.children || [data])) {
+    for (const entry of (group?.standings?.entries || [])) {
+      if (entry.team?.id == teamId) {
+        const recStat = entry.stats?.find(s =>
+          s.name === 'vsConf' ||
+          s.name === 'conferenceRecord' ||
+          s.abbreviation === 'CONF'
+        );
+        if (recStat?.displayValue) return recStat.displayValue;
+      }
+    }
+  }
+
+  return '';
+}
+
+// ─── FETCH ─────────────────────────────────────────────────────────────────
+async function fetchTeam(team) {
+  const [schedRes, summaryRes] = await Promise.all([
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
+  ]);
+
+  if (!schedRes.ok) throw new Error();
+
+  const data = await schedRes.json();
+  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+  const events = (data.events || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let lastCompleted = null, liveGame = null, nextGame = null;
+
+  for (const ev of events) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+
+    const state = comp.status?.type?.state;
+    if (state === 'post') lastCompleted = { ev, comp };
+    else if (state === 'in') liveGame = { ev, comp };
+    else if (state === 'pre' && !nextGame) nextGame = { ev, comp };
+  }
+
+  const teamInfo = summaryData?.team || data.team || {};
+  const recItems = teamInfo?.record?.items || [];
+  const totalRec = recItems.find(r => r.type === 'total') || recItems[0];
+  const recordStr = totalRec?.summary || '';
+
+  const confRecordStr = await getConfRecord(team.id, team.confId);
+
+  return { team, lastCompleted, liveGame, nextGame, recordStr, confRecordStr };
+}
+
+// ─── RENDER FRONT ───────────────────────────────────────────────────────────
+function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confRecordStr }) {
+
+  let answerHTML = `<div class="answer tbd">—</div>`;
+
+  if (liveGame) {
+    answerHTML = `<div class="answer live">LIVE</div>`;
+  } else if (lastCompleted) {
+    const me = lastCompleted.comp.competitors.find(c => c.team.id == team.id);
+    const won = me?.winner === true;
+    answerHTML = `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES 🎉' : 'NO 😬'}</div>`;
+  }
+
+  let recordHTML = '';
+  if (recordStr && confRecordStr) {
+    recordHTML = `
+      <span class="rec-item">
+        ${recordStr}
+        <span class="rec-item conf">(${confRecordStr} conf)</span>
+      </span>`;
+  } else if (recordStr) {
+    recordHTML = `<span class="rec-item">${recordStr}</span>`;
+  }
+
+  const statsHTML = recordHTML ? `
+    <div class="stats-row">
+      ${recordHTML}
+    </div>` : '';
+
+  return `
+    <div class="team-header">
+      <span class="team-emoji">${team.emoji}</span>
+      <div class="team-name">${team.display}</div>
+      <div class="team-sub">${team.sub}</div>
+    </div>
+    ${answerHTML}
+    ${statsHTML}
+  `;
+}
+
+// ─── MAIN ───────────────────────────────────────────────────────────────────
+async function loadAll() {
+  Object.keys(confStandingsCache).forEach(k => delete confStandingsCache[k]);
+
+  const grid = document.getElementById('grid');
+  const results = await Promise.allSettled(TEAMS.map(fetchTeam));
+
+  grid.innerHTML = results.map((r, i) =>
+    r.status === 'fulfilled'
+      ? `<div class="card ${r.value.team.cls}">
+           <div class="card-front">${renderFront(r.value)}</div>
+         </div>`
+      : `<div class="card">${TEAMS[i].display} — error</div>`
+  ).join('');
+}
+
+loadAll();
+setInterval(loadAll, 60000);
+</script>
