@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Did We Win?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+/* KEEPING YOUR ORIGINAL CSS EXACTLY AS-IS */
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Did We <em>Win?</em></h1>
+  <p class="subtitle">Men's Basketball · Live Scores</p>
+  <p class="refresh-info">
+    Auto-refreshes every 60s · updated:
+    <span id="last-updated">—</span>
+    <button id="refresh-btn" onclick="manualRefresh()">↻ now</button>
+  </p>
+</header>
+
+<div class="grid" id="grid"></div>
+<footer>Data via ESPN · hover or tap a card to see the full schedule</footer>
+
+<script>
+
+// ─── CONFIG ───────────────────────────────────────────────
+const TEAMS = [
+  { id: '193', display: 'Miami University', emoji: '❤️', sub: 'RedHawks · MAC · Oxford, OH', cls: 'miami', vibe: 'love', tag: '💪 our team', confId: '15' },
+  { id: '153', display: 'Univ. of North Carolina', emoji: '💙', sub: 'Tar Heels · ACC', cls: 'unc', vibe: 'love', tag: '💙 our team', confId: '2' },
+  { id: '150', display: 'Dook 🤢', emoji: '🤮', sub: '💩 Blue Devils · ACC 💩', cls: 'duke', vibe: 'hate', tag: '🗑️ boo 🤮', confId: '2' },
+];
+
+const confStandingsCache = {};
+
+
+// ─── FIXED CONFERENCE RECORD FUNCTION ─────────────────────
+async function getConfRecord(teamId, confId) {
+  if (!confStandingsCache[confId]) {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/standings?group=${confId}`;
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) confStandingsCache[confId] = await res.json();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  const data = confStandingsCache[confId];
+  if (!data) return '';
+
+  const children = data.children || [];
+
+  for (const child of children) {
+    const entries = child?.standings?.entries || [];
+
+    for (const entry of entries) {
+      if (entry.team?.id === String(teamId)) {
+        const records = entry.records || [];
+        const confRec = records.find(r => r.name === "vs. Conf.");
+        if (confRec?.summary) {
+          return confRec.summary;   // e.g. "13-7"
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+
+// ─── FETCH TEAM ───────────────────────────────────────────
+async function fetchTeam(team) {
+
+  const [schedRes, summaryRes] = await Promise.all([
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
+  ]);
+
+  if (!schedRes.ok) throw new Error();
+
+  const data = await schedRes.json();
+  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+  const events = (data.events || []).sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  let lastCompleted=null, liveGame=null, nextGame=null;
+  const allGames=[];
+
+  for(const ev of events){
+    const comp=ev.competitions?.[0];
+    if(!comp) continue;
+    const state=comp.status?.type?.state;
+    allGames.push({ev,comp,state});
+    if(state==='post') lastCompleted={ev,comp};
+    else if(state==='in') liveGame={ev,comp};
+    else if(state==='pre' && !nextGame) nextGame={ev,comp};
+  }
+
+  const teamInfo = summaryData?.team || data.team || {};
+  const recItems = teamInfo?.record?.items || [];
+  const totalRec = recItems.find(r=>r.type==='total') || recItems[0];
+  const recordStr = totalRec?.summary || '';
+
+  const confRecordStr = await getConfRecord(team.id, team.confId);
+
+  let apRank=null;
+  const rankNum=teamInfo?.rank;
+  if(rankNum && rankNum<26) apRank=rankNum;
+
+  return {team,lastCompleted,liveGame,nextGame,allGames,recordStr,confRecordStr,apRank};
+}
+
+
+// ─── RENDER ────────────────────────────────────────────────
+function renderCard(result){
+
+  const {team,lastCompleted,liveGame,nextGame,recordStr,confRecordStr,apRank}=result;
+
+  const rankHTML = apRank ? `<span class="rank-badge">#${apRank} AP</span>` : '';
+  const recParts = [];
+  if(recordStr) recParts.push(`<span class="rec-item">${recordStr} overall</span>`);
+  if(confRecordStr) recParts.push(`<span class="rec-item conf">${confRecordStr} conf</span>`);
+
+  return `
+  <div class="card ${team.cls}">
+    <div class="card-front">
+      <div class="team-name">${team.display}</div>
+      ${rankHTML}
+      ${recParts.join('')}
+    </div>
+  </div>`;
+}
+
+
+// ─── MAIN ──────────────────────────────────────────────────
+async function loadAll(){
+  Object.keys(confStandingsCache).forEach(k=>delete confStandingsCache[k]);
+  const grid=document.getElementById('grid');
+  const results=await Promise.allSettled(TEAMS.map(fetchTeam));
+  grid.innerHTML=results.map((r,i)=>
+    r.status==='fulfilled'?renderCard(r.value):''
+  ).join('');
+  document.getElementById('last-updated').textContent=
+    new Date().toLocaleTimeString();
+}
+
+function manualRefresh(){ loadAll(); }
+
+loadAll();
+setInterval(loadAll,60000);
+
+</script>
+</body>
+</html>
