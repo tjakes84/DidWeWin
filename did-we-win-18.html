@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Did We Win?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --yes:  #39FF14;
+      --no:   #FF4040;
+      --live: #FFD700;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #0a0a0a;
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 4rem;
+    }
+
+    /* ── HEADER ── */
+    header { text-align: center; margin-bottom: 2.8rem; }
+
+    h1 {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3rem, 9vw, 6rem);
+      color: #fff;
+      letter-spacing: 0.03em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    h1 em { color: #FFD700; font-style: normal; }
+
+    .subtitle {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: #444;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .refresh-info {
+      margin-top: 0.3rem;
+      font-size: 0.68rem;
+      color: #383838;
+      letter-spacing: 0.08em;
+    }
+    #last-updated { color: #555; }
+
+    #refresh-btn {
+      background: none;
+      border: 1px solid #333;
+      color: #555;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+      transition: border-color 0.2s, color 0.2s;
+      vertical-align: middle;
+    }
+    #refresh-btn:hover { border-color: #888; color: #bbb; }
+    #refresh-btn.spinning { animation: spin 0.6s linear; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ── GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.6rem;
+      width: 100%;
+      max-width: 1080px;
+    }
+
+    /* ── CARD SHELL ── */
+    .card {
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 55px rgba(0,0,0,0.6);
+      cursor: pointer;
+      /* min-height so content always fits; back is taller so card grows */
+      min-height: 380px;
+    }
+
+    /* FRONT and BACK share the same space */
+    .card-front,
+    .card-back {
+      position: absolute;
+      inset: 0;
+      padding: 1.6rem 1.7rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      border-radius: 20px;
+      overflow: hidden; /* no scrollbars — content must fit */
+    }
+
+    .card-back {
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+    }
+
+    /* hover only activates on real pointer devices when card isn't click-pinned */
+    @media (hover: hover) {
+      .card:not(.flipped):hover .card-front {
+        opacity: 0;
+        transform: translateY(-12px);
+        pointer-events: none;
+      }
+      .card:not(.flipped):hover .card-back {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: all;
+      }
+    }
+
+    /* click-pinned: toggle with .flipped class */
+    .card.flipped .card-front {
+      opacity: 0;
+      transform: translateY(-12px);
+      pointer-events: none;
+    }
+    .card.flipped .card-back {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    /* diagonal texture */
+    .card-front::before,
+    .card-back::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -55deg,
+        rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 1px,
+        transparent 1px, transparent 18px
+      );
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    /* shimmer on load */
+    .card.loading .card-front::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: inherit;
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+
+    /* ─── MIAMI — LOVE ─── */
+    .card.miami .card-front,
+    .card.miami .card-back {
+      background: linear-gradient(145deg, #8B0000 0%, #C41E3A 55%, #E8324A 100%);
+    }
+    .card.miami { box-shadow: 0 12px 55px rgba(196,30,58,0.4), 0 0 0 1px rgba(255,120,120,0.15); }
+    .card.miami:hover { box-shadow: 0 20px 70px rgba(196,30,58,0.6), 0 0 0 1px rgba(255,160,160,0.3); }
+    .card.miami .team-name { color: #FFD0D0; }
+    .card.miami .love-tag { display: inline-block; }
+
+    /* ─── UNC — LOVE ─── */
+    .card.unc .card-front,
+    .card.unc .card-back {
+      background: linear-gradient(145deg, #1a6fa8 0%, #4B9CD3 55%, #6ab8f7 100%);
+    }
+    .card.unc { box-shadow: 0 12px 55px rgba(75,156,211,0.35), 0 0 0 1px rgba(106,184,247,0.15); }
+    .card.unc:hover { box-shadow: 0 20px 70px rgba(75,156,211,0.55), 0 0 0 1px rgba(106,184,247,0.3); }
+    .card.unc .team-name { color: #fff; }
+    .card.unc .love-tag { display: inline-block; }
+
+    /* ─── DUKE — MAXIMUM BARF ─── */
+    .card.duke .card-front,
+    .card.duke .card-back {
+      background: linear-gradient(160deg, #2a1f00 0%, #3d2e05 40%, #1e1700 100%);
+      filter: saturate(0.5) brightness(0.85);
+    }
+    .card.duke {
+      box-shadow: 0 12px 55px rgba(0,0,0,0.9), 0 0 0 2px rgba(100,80,0,0.2);
+      /* slight tilt — even the card looks wrong */
+      transform: rotate(-0.6deg);
+    }
+    .card.duke:hover {
+      box-shadow: 0 16px 60px rgba(0,0,0,0.95), 0 0 0 2px rgba(100,80,0,0.25);
+      transform: rotate(-0.6deg) translateY(-3px);
+    }
+    .card.duke.flipped {
+      transform: rotate(-0.6deg);
+    }
+    .card.duke .team-name {
+      color: #7a7255;
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,80,80,0.5);
+      text-decoration-thickness: 2px;
+    }
+    .card.duke .team-sub { color: rgba(255,255,255,0.22); }
+    .card.duke .hate-tag { display: inline-block; }
+
+    /* big ugly watermark cluster */
+    .card.duke .card-front::after {
+      content: '🤮 🤢 🤮';
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.6rem;
+      font-size: 2.2rem;
+      opacity: 0.22;
+      pointer-events: none;
+      letter-spacing: 0.1em;
+    }
+    /* second watermark top-left corner */
+    .card.duke .card-back::after {
+      content: '🤢';
+      position: absolute;
+      top: 0.7rem;
+      right: 0.9rem;
+      font-size: 1.8rem;
+      opacity: 0.2;
+      pointer-events: none;
+    }
+    /* scratch texture overlay */
+    .card.duke .card-front::before,
+    .card.duke .card-back::before {
+      background: repeating-linear-gradient(
+        12deg,
+        rgba(255,200,0,0.03) 0px, rgba(255,200,0,0.03) 1px,
+        transparent 1px, transparent 10px
+      ), repeating-linear-gradient(
+        -70deg,
+        rgba(255,0,0,0.02) 0px, rgba(255,0,0,0.02) 1px,
+        transparent 1px, transparent 14px
+      );
+    }
+    /* Duke answer text gets muted */
+    .card.duke .answer.yes { color: #8aaa77; text-shadow: none; font-size: clamp(3rem, 9vw, 5rem); }
+    .card.duke .answer.yes::after { content: ' 🤢 ugh'; font-size: 0.35em; color: rgba(255,255,255,0.3); vertical-align: middle; }
+    .card.duke .answer.no  { color: #cc4444; text-shadow: 0 0 20px rgba(200,50,50,0.3); }
+    .card.duke .answer.no::after  { content: ' 😂🎉'; font-size: 0.5em; vertical-align: middle; }
+    .card.duke .record { color: rgba(255,255,255,0.2); }
+    /* Duke hint text */
+    .card.duke .hint { color: rgba(255,255,255,0.1); }
+
+    /* ── TEAM HEADER ── */
+    .team-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .team-emoji {
+      font-size: 1.4rem;
+      line-height: 1;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .team-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: nowrap;
+      line-height: 1;
+    }
+    .team-tag-row {
+      display: flex;
+      align-items: center;
+      margin-top: 0.3rem;
+    }
+
+    .team-name {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .team-sub {
+      font-size: 0.67rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.42);
+      margin-top: 0.3rem;
+    }
+
+    /* love/hate tag — hidden by default, shown per team */
+    .love-tag, .hate-tag { display: none; }
+    .love-tag {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
+      padding: 0.18rem 0.55rem;
+      border-radius: 20px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: center;
+    }
+    .hate-tag {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: rgba(255,50,50,0.15);
+      color: rgba(255,120,120,0.7);
+      padding: 0.18rem 0.55rem;
+      border-radius: 20px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: center;
+    }
+
+    /* ── FRONT GAME DETAILS ── */
+    .front-game {
+      display: flex;
+      flex-direction: column;
+      gap: 0.12rem;
+      margin-top: 0;
+    }
+    .front-game-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+      font-weight: 500;
+    }
+    .front-game-line {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.4;
+    }
+    .front-game-line strong { color: #fff; }
+    .front-badge {
+      display: inline-block;
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+      margin-left: 0.3rem;
+      vertical-align: middle;
+      position: relative; top: -1px;
+    }
+    .front-badge.w    { background: rgba(57,255,20,0.18);  color: var(--yes); }
+    .front-badge.l    { background: rgba(255,64,64,0.18);  color: var(--no); }
+    .front-badge.live { background: rgba(255,215,0,0.18);  color: var(--live); }
+    .front-badge.up   { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); font-family: 'DM Sans', sans-serif; font-size: 0.7rem; }
+    .answer {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3.5rem, 10vw, 5.5rem);
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .answer.yes  { color: var(--yes);  text-shadow: 0 0 40px rgba(57,255,20,0.5); }
+    .answer.no   { color: var(--no);   text-shadow: 0 0 40px rgba(255,64,64,0.5); }
+    .answer.live { color: var(--live); text-shadow: 0 0 40px rgba(255,215,0,0.5); animation: blink 1s ease-in-out infinite; }
+    .answer.tbd  { color: #444; font-size: clamp(2rem, 5vw, 3rem); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .live-details {
+      font-family: 'Anton', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+      color: rgba(255,215,0,0.8);
+      margin-top: -0.6rem;
+    }
+
+    .record {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.38);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: -0.5rem;
+    }
+
+    /* hint text on front */
+    .hint {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: auto;
+      text-align: right;
+    }
+    /* on touch devices show "tap" hint, on mouse show "hover" hint */
+    .hint-hover { display: inline; }
+    .hint-tap   { display: none;   }
+    @media (hover: none) {
+      .hint-hover { display: none;   }
+      .hint-tap   { display: inline; }
+    }
+
+    /* ── BACK / SCHEDULE ── */
+    .back-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 0.25rem;
+    }
+
+    .schedule-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .sched-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.2);
+      font-size: 0.82rem;
+      color: #fff;
+      transition: background 0.15s;
+    }
+    .sched-row.current {
+      background: rgba(255,255,255,0.12);
+      outline: 1px solid rgba(255,255,255,0.18);
+    }
+
+    .sched-date {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.38);
+      min-width: 52px;
+      letter-spacing: 0.05em;
+    }
+
+    .sched-opp {
+      flex: 1;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sched-result {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .sched-result.w    { background: rgba(57,255,20,0.18); color: var(--yes); }
+    .sched-result.l    { background: rgba(255,64,64,0.18); color: var(--no); }
+    .sched-result.live { background: rgba(255,215,0,0.18); color: var(--live); animation: blink 1s ease-in-out infinite; }
+    .sched-result.upcoming { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); font-family: 'DM Sans', sans-serif; font-size: 0.7rem; letter-spacing: 0.04em; }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.1); margin: 0.25rem 0; }
+
+    footer {
+      margin-top: 3rem;
+      font-size: 0.65rem;
+      color: #2a2a2a;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 2;
+    }
+
+    /* scrollbar styling for schedule */
+    .schedule-list::-webkit-scrollbar { width: 3px; }
+    .schedule-list::-webkit-scrollbar-track { background: transparent; }
+    .schedule-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+    /* ── STATS ROW (front) ── */
+    .stats-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: -0.2rem;
+    }
+
+    .rank-badge {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      background: rgba(255,215,0,0.22);
+      color: #FFD700;
+      padding: 0.18rem 0.55rem;
+      border-radius: 5px;
+      border: 1px solid rgba(255,215,0,0.3);
+    }
+
+    .rec-item {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.06em;
+      background: rgba(255,255,255,0.08);
+      padding: 0.18rem 0.5rem;
+      border-radius: 5px;
+    }
+    .rec-item.conf {
+      color: rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.05);
+    }
+    .rec-item.div {
+      color: rgba(255,255,255,0.32);
+      background: rgba(255,255,255,0.04);
+      font-style: italic;
+    }
+
+    /* opponent rank inline in game lines */
+    .opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      color: rgba(255,215,0,0.75);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── BACK HEADER ── */
+    .back-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.1rem;
+    }
+
+    .back-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .back-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      background: rgba(255,215,0,0.2);
+      color: #FFD700;
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255,215,0,0.25);
+    }
+
+    .back-rec {
+      font-size: 0.67rem;
+      color: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.07);
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+    .back-rec.conf { color: rgba(255,255,255,0.32); }
+    .back-rec.div  { color: rgba(255,255,255,0.28); font-style: italic; }
+
+    /* opponent rank in schedule rows */
+    .sched-opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.7rem;
+      color: rgba(255,215,0,0.7);
+      letter-spacing: 0.03em;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Did We <em>Win?</em></h1>
+  <p class="subtitle">Men's Basketball · Live Scores</p>
+  <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<footer>Data via ESPN · hover or tap a card to see the full schedule</footer>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const TEAMS = [
+  { id: '193', display: 'Miami University',         emoji: '❤️',  sub: 'RedHawks · MAC · Oxford, OH', cls: 'miami', vibe: 'love', tag: '💪 our team', confId: '14' },
+  { id: '153', display: 'Univ. of North Carolina',  emoji: '💙',  sub: 'Tar Heels · ACC',             cls: 'unc',   vibe: 'love', tag: '💙 our team', confId: '2'  },
+  { id: '150', display: 'Dook 🤢',                  emoji: '🤮',  sub: '💩 Blue Devils · ACC 💩',     cls: 'duke',  vibe: 'hate', tag: '🗑️ boo 🤮',  confId: '2'  },
+];
+
+// Promise cache — stores the in-flight (or resolved) Promise per confId.
+// Multiple teams in the same conf await the SAME promise, eliminating race conditions.
+const confStandingsPromises = {};
+
+function loadConfStandings(confId) {
+  if (confStandingsPromises[confId]) return confStandingsPromises[confId];
+
+  confStandingsPromises[confId] = (async () => {
+    // Step 1: fetch the standings index for this group
+    const idx = await fetch(
+      `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/2026/types/2/groups/${confId}/standings?limit=200`,
+      { cache: 'no-store' }
+    ).then(r => r.json());
+
+    // Step 2: follow first item ref to get the standings wrapper
+    const root = await fetch(idx.items[0].$ref).then(r => r.json());
+
+    // Step 3: follow root.standings.$ref to get the entries list
+    const standingsObj = await fetch(root.standings.$ref).then(r => r.json());
+    const entries = standingsObj.entries || [];
+
+    // Step 4: resolve team name + conf record for all entries in parallel
+    const results = await Promise.all(entries.map(async entry => {
+      try {
+        const team    = await fetch(entry.team.$ref).then(r => r.json());
+        const records = await Promise.all(
+          (entry.records || []).map(r => fetch(r.$ref).then(res => res.json()))
+        );
+        const confRec = records.find(r => r.name === 'vs. Conf.');
+        return { displayName: team.displayName, confRecord: confRec?.summary || '' };
+      } catch(e) {
+        return null;
+      }
+    }));
+
+    return results.filter(Boolean);
+  })();
+
+  return confStandingsPromises[confId];
+}
+
+async function getConfRecord(teamId, confId, teamDisplayName) {
+  try {
+    const entries = await loadConfStandings(confId);
+    const entry = entries.find(e => e.displayName === teamDisplayName);
+    return entry?.confRecord || '';
+  } catch(e) {
+    return '';
+  }
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+const fmtTime = d => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+const fmtDateShort = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+
+// Smart relative date: tonight/last night/tomorrow/yesterday or short date
+function smartDate(dateStr, isUpcoming) {
+  const now   = new Date();
+  const game  = new Date(dateStr);
+  // compare calendar days in ET
+  const etNow  = new Date(now.toLocaleString('en-US',  { timeZone: 'America/New_York' }));
+  const etGame = new Date(game.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const diffDays = Math.round((etGame.setHours(0,0,0,0) - etNow.setHours(0,0,0,0)) / 86400000);
+
+  if (diffDays === 0)  return isUpcoming ? 'Tonight'    : 'Tonight';
+  if (diffDays === 1)  return 'Tomorrow';
+  if (diffDays === -1) return isUpcoming ? 'Yesterday'  : 'Last night';
+  if (diffDays === 2)  return 'In 2 days';
+  return fmtDateShort(dateStr);
+}
+
+function teamMatches(c, teamId) {
+  return c.team?.id === teamId || c.team?.id === String(teamId) ||
+         c.id === teamId || c.id === String(teamId);
+}
+function getMe(comp, teamId)  { return comp.competitors?.find(c => teamMatches(c, teamId)); }
+function getOpp(comp, teamId) { return comp.competitors?.find(c => !teamMatches(c, teamId)); }
+
+function extractScore(c) {
+  if (!c) return '?';
+  const s = c.score;
+  if (s == null) return '?';
+  if (typeof s === 'object') return s.displayValue ?? s.value ?? '?';
+  return s;
+}
+
+function periodLabel(comp) {
+  const s = comp.status;
+  if (!s) return '';
+  const p = s.period || 0;
+  const half = p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT';
+  const clock = s.displayClock;
+  return (clock && clock !== '0:00') ? `${half} · ${clock}` : half;
+}
+
+// ─── FETCH ───────────────────────────────────────────────────────────────────
+async function fetchTeam(team) {
+  // Fetch schedule and team summary in parallel
+  const [schedRes, summaryRes] = await Promise.all([
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
+  ]);
+  if (!schedRes.ok) throw new Error(`HTTP ${schedRes.status}`);
+  const data        = await schedRes.json();
+  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+  const events = (data.events || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let lastCompleted = null, liveGame = null, nextGame = null;
+  const allGames = [];
+
+  for (const ev of events) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+    const state = comp.status?.type?.state;
+    allGames.push({ ev, comp, state });
+    if      (state === 'post')               lastCompleted = { ev, comp };
+    else if (state === 'in')                 liveGame      = { ev, comp };
+    else if (state === 'pre' && !nextGame)   nextGame      = { ev, comp };
+  }
+
+  // Total, conference, and divisional records — prefer summary endpoint
+  const teamInfo  = summaryData?.team || data.team || {};
+  const recItems  = teamInfo?.record?.items || data.team?.record?.items || [];
+  console.log(`[${team.display}] record items:`, recItems.map(r => `${r.type}/${r.name}=${r.summary}`));
+  const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
+  const confRec   = recItems.find(r => r.type === 'vsconf' || r.type === 'conference' || (r.name || '').toLowerCase().includes('conf'));
+  const recordStr     = totalRec?.summary || '';
+  // Try direct conf record first; fall back to standings lookup
+  const directConfStr = confRec?.summary || '';
+  const confRecordStr = directConfStr || await getConfRecord(team.id, team.confId, teamInfo?.displayName || team.display);
+
+  // AP ranking — the team summary endpoint has the most reliable current rank
+  // It lives at team.rankSummary (e.g. "#22 AP") or team.rank (number)
+  let apRank = null;
+  const rankNum = teamInfo?.rank;
+  if (rankNum && Number(rankNum) > 0 && Number(rankNum) < 26) {
+    apRank = Number(rankNum);
+  }
+  // rankSummary is a string like "#22" — parse it as a fallback
+  if (!apRank) {
+    const rankSummary = teamInfo?.rankSummary;
+    if (rankSummary) {
+      const m = String(rankSummary).match(/(\d+)/);
+      if (m && Number(m[1]) < 26) apRank = Number(m[1]);
+    }
+  }
+  // Last resort: check the most recent game's competitor rank entry
+  if (!apRank && lastCompleted) {
+    const me = getMe(lastCompleted.comp, team.id);
+    const r  = me?.curatedRank?.current;
+    if (r && r > 0 && r < 26) apRank = r;
+  }
+
+  // If there's a live game, fetch fresh score data from the event summary endpoint
+  if (liveGame) {
+    try {
+      const eventId = liveGame.ev.id;
+      const liveRes = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=${eventId}`,
+        { cache: 'no-store' }
+      );
+      if (liveRes.ok) {
+        const liveData = await liveRes.json();
+        // The boxscore has the live competitors with scores
+        const liveComp = liveData.header?.competitions?.[0];
+        if (liveComp) {
+          // Merge live competitor scores into liveGame.comp
+          liveGame.comp = liveComp;
+        }
+      }
+    } catch(e) { /* keep original data */ }
+  }
+
+  return { team, lastCompleted, liveGame, nextGame, allGames, recordStr, confRecordStr, apRank };
+}
+
+// Helper: get opponent AP ranking from a competition
+function getOppRank(comp, teamId) {
+  const opp = getOpp(comp, teamId);
+  if (!opp) return null;
+  const r = opp.curatedRank?.current || opp.rank;
+  return (r && r < 26) ? r : null;
+}
+
+function rankPill(rank) {
+  if (!rank) return '';
+  return ` <span class="rank-pill">#${rank}</span>`;
+}
+
+// ─── RENDER FRONT ────────────────────────────────────────────────────────────
+function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confRecordStr, apRank }) {
+  const tid = team.id;
+  const tagClass = team.vibe === 'love' ? 'love-tag' : 'hate-tag';
+
+  let answerHTML = '', liveDetailsHTML = '';
+
+  if (liveGame) {
+    const me  = getMe(liveGame.comp, tid);
+    const opp = getOpp(liveGame.comp, tid);
+    answerHTML      = `<div class="answer live">LIVE</div>`;
+    liveDetailsHTML = `<div class="live-details">${extractScore(me)} – ${extractScore(opp)} · ${periodLabel(liveGame.comp)}</div>`;
+  } else if (lastCompleted) {
+    const me  = getMe(lastCompleted.comp, tid);
+    const won = me?.winner === true;
+    const yesEmoji = team.vibe === 'hate' ? '😒' : '🎉';
+    const noEmoji  = team.vibe === 'hate' ? '😂' : '😬';
+    answerHTML = `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES ' + yesEmoji : 'NO ' + noEmoji}</div>`;
+  } else {
+    answerHTML = `<div class="answer tbd">—</div>`;
+  }
+
+  // Ranking + records row
+  const rankHTML  = apRank ? `<span class="rank-badge">#${apRank} AP</span>` : '';
+  const recParts  = [];
+  if (recordStr)     recParts.push(`<span class="rec-item">${recordStr} overall</span>`);
+  if (confRecordStr) recParts.push(`<span class="rec-item conf">${confRecordStr} conf</span>`);
+
+  const statsHTML = (rankHTML || recParts.length) ? `
+    <div class="stats-row">
+      ${rankHTML}
+      ${recParts.join('')}
+    </div>` : '';
+
+  // ── Last game detail block ──
+  let lastGameHTML = '';
+  if (lastCompleted) {
+    const { ev, comp } = lastCompleted;
+    const me  = getMe(comp, tid);
+    const opp = getOpp(comp, tid);
+    const won  = me?.winner === true;
+    const myS  = extractScore(me);
+    const oppS = extractScore(opp);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr   = me?.homeAway === 'home' ? 'vs' : '@';
+    const when    = smartDate(ev.date, false);
+    lastGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Last game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+        </div>
+      </div>`;
+  }
+
+  // ── Next game detail block ──
+  let nextGameHTML = '';
+  if (nextGame) {
+    const { ev, comp } = nextGame;
+    const me  = getMe(comp, tid);
+    const opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr   = me?.homeAway === 'home' ? 'vs' : '@';
+    const when    = smartDate(ev.date, true);
+    const time    = fmtTime(ev.date);
+    nextGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Next game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge up">${time}</span>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="team-header">
+      <span class="team-emoji">${team.emoji}</span>
+      <div class="team-name-row">
+        <span class="team-name">${team.display}</span>
+      </div>
+      <div class="team-tag-row">
+        <span class="${tagClass}">${team.tag}</span>
+      </div>
+      <div class="team-sub">${team.sub}</div>
+    </div>
+    ${answerHTML}
+    ${liveDetailsHTML}
+    ${statsHTML}
+    ${lastGameHTML}
+    ${nextGameHTML}
+    <div class="hint"><span class="hint-hover">hover</span><span class="hint-tap">tap</span> for schedule ↗</div>
+  `;
+}
+
+// ─── RENDER BACK (schedule) ───────────────────────────────────────────────────
+function renderBack({ team, allGames, liveGame, nextGame, apRank, recordStr, confRecordStr }) {
+  const tid    = team.id;
+
+  const completed = allGames.filter(g => g.state === 'post').slice(-5);
+  const live      = allGames.filter(g => g.state === 'in');
+  const upcoming  = allGames.filter(g => g.state === 'pre').slice(0, 5);
+
+  const completedRows = completed.map(({ ev, comp }) => {
+    const me  = getMe(comp, tid);
+    const opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr   = me?.homeAway === 'home' ? 'vs' : '@';
+    const won     = me?.winner === true;
+    const myS     = extractScore(me);
+    const oppS    = extractScore(opp);
+    const when    = smartDate(ev.date, false);
+    const rankStr = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `
+      <div class="sched-row">
+        <span class="sched-date">${when}</span>
+        <span class="sched-opp">${atStr} ${rankStr}${oppName}</span>
+        <span class="sched-result ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+      </div>`;
+  }).join('');
+
+  const liveRows = live.map(({ ev, comp }) => {
+    const me  = getMe(comp, tid);
+    const opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr   = me?.homeAway === 'home' ? 'vs' : '@';
+    const myS     = extractScore(me);
+    const oppS    = extractScore(opp);
+    const rankStr = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `
+      <div class="sched-row current">
+        <span class="sched-date">Now</span>
+        <span class="sched-opp">${atStr} ${rankStr}${oppName}</span>
+        <span class="sched-result live">LIVE ${myS}–${oppS} · ${periodLabel(comp)}</span>
+      </div>`;
+  }).join('');
+
+  const upcomingRows = upcoming.map(({ ev, comp }, i) => {
+    const me  = getMe(comp, tid);
+    const opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr   = me?.homeAway === 'home' ? 'vs' : '@';
+    const isNext  = i === 0 && !live.length;
+    const when    = smartDate(ev.date, true);
+    const time    = fmtTime(ev.date);
+    const rankStr = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `
+      <div class="sched-row ${isNext ? 'current' : ''}">
+        <span class="sched-date">${when}</span>
+        <span class="sched-opp">${atStr} ${rankStr}${oppName}</span>
+        <span class="sched-result upcoming">${time}</span>
+      </div>`;
+  }).join('');
+
+  const hasFuture = liveRows || upcomingRows;
+
+  // Header with team rank + records
+  const rankStr    = apRank ? `<span class="back-rank">#${apRank} AP</span>` : '';
+  const recStr     = recordStr ? `<span class="back-rec">${recordStr}</span>` : '';
+  const confStr    = confRecordStr ? `<span class="back-rec conf">${confRecordStr} conf</span>` : '';
+
+
+  return `
+    <div class="back-header">
+      <span class="back-title">${team.emoji} Schedule</span>
+      <span class="back-meta">${rankStr}${recStr}${confStr}</span>
+    </div>
+    <div class="schedule-list">
+      ${completedRows}
+      ${hasFuture ? '<div class="divider"></div>' : ''}
+      ${liveRows}
+      ${upcomingRows}
+    </div>
+  `;
+}
+
+// ─── RENDER CARD ─────────────────────────────────────────────────────────────
+function renderCard(result) {
+  return `
+    <div class="card ${result.team.cls}" onclick="this.classList.toggle('flipped')">
+      <div class="card-front">${renderFront(result)}</div>
+      <div class="card-back">${renderBack(result)}</div>
+    </div>`;
+}
+
+function renderError(team) {
+  return `
+    <div class="card ${team.cls}">
+      <div class="card-front">
+        <div><span class="team-emoji">${team.emoji}</span><span class="team-name">${team.display}</span></div>
+        <div class="answer tbd">—</div>
+        <div class="record" style="color:rgba(255,255,255,0.25);font-style:italic">Couldn't load · will retry</div>
+      </div>
+      <div class="card-back"><div class="back-title">No data</div></div>
+    </div>`;
+}
+
+// ─── MAIN ────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  // Clear conf standings promise cache so we re-fetch fresh data each cycle
+  Object.keys(confStandingsPromises).forEach(k => delete confStandingsPromises[k]);
+  const grid = document.getElementById('grid');
+
+  if (!grid.children.length) {
+    grid.innerHTML = TEAMS.map(t => `
+      <div class="card loading ${t.cls}">
+        <div class="card-front">
+          <div><span class="team-emoji">${t.emoji}</span><span class="team-name">${t.display}</span></div>
+          <div class="answer tbd" style="margin-top:auto">…</div>
+        </div>
+        <div class="card-back"></div>
+      </div>`).join('');
+  }
+
+  const results = await Promise.allSettled(TEAMS.map(fetchTeam));
+
+  grid.innerHTML = results.map((r, i) =>
+    r.status === 'fulfilled' ? renderCard(r.value) : renderError(TEAMS[i])
+  ).join('');
+
+  document.getElementById('last-updated').textContent =
+    new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  loadAll().finally(() => {
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+  });
+}
+
+loadAll();
+setInterval(loadAll, 60_000);
+</script>
+</body>
+</html>
