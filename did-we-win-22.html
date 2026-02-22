@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Did We Win?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --yes:  #4ade80;
+      --no:   #f87171;
+      --live: #fbbf24;
+      --bg:   #111318;
+      --surface: #1a1d24;
+      --surface2: #22262f;
+      --border: rgba(255,255,255,0.07);
+      --text-dim: rgba(255,255,255,0.35);
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 2rem;
+    }
+
+    /* ── HEADER ── */
+    header { text-align: center; margin-bottom: 2.4rem; }
+
+    h1 {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(2.8rem, 8vw, 5.5rem);
+      color: #fff;
+      letter-spacing: 0.03em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    h1 em { color: var(--live); font-style: normal; }
+
+    .subtitle {
+      margin-top: 0.55rem;
+      font-size: 0.7rem;
+      color: #444;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .refresh-info {
+      margin-top: 0.3rem;
+      font-size: 0.67rem;
+      color: #353535;
+      letter-spacing: 0.07em;
+    }
+    #last-updated { color: #4a4a4a; }
+
+    #refresh-btn {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #4a4a4a;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.67rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+      transition: border-color 0.2s, color 0.2s;
+      vertical-align: middle;
+    }
+    #refresh-btn:hover { border-color: #555; color: #888; }
+    #refresh-btn.spinning { animation: spin 0.6s linear; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ── GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.4rem;
+      width: 100%;
+      max-width: 1080px;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-dim);
+    }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+    .empty-state p { font-size: 0.9rem; letter-spacing: 0.08em; }
+
+    /* ── CARD SHELL ── */
+    .card {
+      border-radius: 18px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      cursor: pointer;
+      min-height: 360px;
+      transition: box-shadow 0.25s, transform 0.25s;
+    }
+    .card:hover { transform: translateY(-2px); }
+
+    .card-front,
+    .card-back {
+      position: absolute;
+      inset: 0;
+      padding: 1.5rem 1.6rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: opacity 0.28s ease, transform 0.28s ease;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .card-back {
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+    }
+
+    @media (hover: hover) {
+      .card:not(.flipped):hover .card-front {
+        opacity: 0;
+        transform: translateY(-10px);
+        pointer-events: none;
+      }
+      .card:not(.flipped):hover .card-back {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: all;
+      }
+    }
+
+    .card.flipped .card-front {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+    .card.flipped .card-back {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    /* subtle texture */
+    .card-front::before, .card-back::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -55deg,
+        rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px,
+        transparent 1px, transparent 22px
+      );
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    /* shimmer */
+    .card.loading .card-front::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: inherit;
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+
+    /* ─── TEAM CARD THEMES ─── */
+    /* Love teams — refined gradients, softer glows */
+    .card.team-love .card-front,
+    .card.team-love .card-back {
+      /* Applied dynamically via JS */
+    }
+
+    /* Hate team — desaturated, ugly on purpose */
+    .card.hate-card .card-front,
+    .card.hate-card .card-back {
+      background: linear-gradient(160deg, #1c1800 0%, #2a2100 45%, #141100 100%);
+      filter: saturate(0.4) brightness(0.8);
+    }
+    .card.hate-card {
+      box-shadow: 0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(80,60,0,0.15);
+      transform: rotate(-0.5deg);
+    }
+    .card.hate-card:hover { transform: rotate(-0.5deg) translateY(-2px); }
+    .card.hate-card .team-name {
+      color: #6a6040;
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,80,80,0.4);
+    }
+    .card.hate-card .card-front::after {
+      content: '🤮 🤢 🤮';
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.6rem;
+      font-size: 2rem;
+      opacity: 0.18;
+      pointer-events: none;
+    }
+    .card.hate-card .answer.yes { color: #7a9966; text-shadow: none; }
+    .card.hate-card .answer.yes::after { content: ' 🤢 ugh'; font-size: 0.35em; color: rgba(255,255,255,0.25); vertical-align: middle; }
+    .card.hate-card .answer.no::after  { content: ' 😂🎉'; font-size: 0.5em; vertical-align: middle; }
+    .card.hate-card .hint { color: rgba(255,255,255,0.08); }
+
+    /* ── TEAM HEADER ── */
+    .team-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .team-emoji {
+      font-size: 1.3rem;
+      line-height: 1;
+      display: block;
+      margin-bottom: 0.22rem;
+    }
+
+    .team-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: nowrap;
+      line-height: 1;
+    }
+    .team-tag-row {
+      display: flex;
+      align-items: center;
+      margin-top: 0.28rem;
+    }
+
+    .team-name {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(1rem, 3.2vw, 1.4rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1;
+      white-space: nowrap;
+      color: #fff;
+    }
+
+    .team-sub {
+      font-size: 0.64rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      margin-top: 0.25rem;
+    }
+
+    .love-tag, .hate-tag {
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.16rem 0.5rem;
+      border-radius: 20px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .love-tag { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.6); }
+    .hate-tag { background: rgba(255,50,50,0.12); color: rgba(255,120,120,0.6); }
+
+    /* ── FRONT GAME DETAILS ── */
+    .front-game {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .front-game-label {
+      font-size: 0.58rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      font-weight: 500;
+    }
+    .front-game-line {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.4;
+    }
+    .front-game-line strong { color: rgba(255,255,255,0.9); }
+
+    .front-badge {
+      display: inline-block;
+      font-family: 'Anton', sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.3rem;
+      vertical-align: middle;
+      position: relative; top: -1px;
+    }
+    .front-badge.w    { background: rgba(74,222,128,0.15); color: var(--yes); }
+    .front-badge.l    { background: rgba(248,113,113,0.15); color: var(--no); }
+    .front-badge.live { background: rgba(251,191,36,0.15); color: var(--live); }
+    .front-badge.up   { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.38); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; }
+
+    .answer {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3.2rem, 9vw, 5rem);
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .answer.yes  { color: var(--yes);  text-shadow: 0 0 30px rgba(74,222,128,0.35); }
+    .answer.no   { color: var(--no);   text-shadow: 0 0 30px rgba(248,113,113,0.35); }
+    .answer.live { color: var(--live); text-shadow: 0 0 30px rgba(251,191,36,0.4); animation: blink 1.2s ease-in-out infinite; }
+    .answer.tbd  { color: #333; font-size: clamp(2rem, 5vw, 3rem); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    .live-details {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      color: rgba(251,191,36,0.75);
+      margin-top: -0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .live-opponent {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.05em;
+      margin-top: -0.25rem;
+    }
+    .live-opponent strong { color: rgba(255,255,255,0.8); }
+
+    .winning-tag {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 0.09rem 0.38rem;
+      border-radius: 4px;
+    }
+    .winning-tag         { background: rgba(74,222,128,0.14); color: var(--yes); }
+    .winning-tag.losing  { background: rgba(248,113,113,0.14); color: var(--no); }
+    .winning-tag.tied    { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); }
+
+    /* hint */
+    .hint {
+      font-size: 0.6rem;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: auto;
+      text-align: right;
+    }
+    .hint-hover { display: inline; }
+    .hint-tap   { display: none; }
+    @media (hover: none) {
+      .hint-hover { display: none; }
+      .hint-tap   { display: inline; }
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: -0.15rem;
+    }
+
+    .rank-badge {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      background: rgba(251,191,36,0.16);
+      color: var(--live);
+      padding: 0.15rem 0.5rem;
+      border-radius: 5px;
+      border: 1px solid rgba(251,191,36,0.22);
+    }
+
+    .rec-item {
+      font-size: 0.67rem;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.07);
+      padding: 0.15rem 0.45rem;
+      border-radius: 5px;
+    }
+    .rec-item.conf { color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.04); }
+
+    .opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.7rem;
+      color: rgba(251,191,36,0.7);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── BACK ── */
+    .back-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.1rem;
+    }
+
+    .back-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .back-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+    }
+
+    .back-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      background: rgba(251,191,36,0.16);
+      color: var(--live);
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+      border: 1px solid rgba(251,191,36,0.22);
+    }
+
+    .back-rec {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.06);
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+    }
+    .back-rec.conf { color: rgba(255,255,255,0.28); }
+
+    .schedule-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.42rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .sched-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.18);
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.85);
+    }
+    .sched-row.current {
+      background: rgba(255,255,255,0.09);
+      outline: 1px solid rgba(255,255,255,0.13);
+    }
+
+    .sched-date {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.3);
+      min-width: 52px;
+      letter-spacing: 0.04em;
+    }
+
+    .sched-opp {
+      flex: 1;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sched-result {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      padding: 0.08rem 0.38rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .sched-result.w    { background: rgba(74,222,128,0.14); color: var(--yes); }
+    .sched-result.l    { background: rgba(248,113,113,0.14); color: var(--no); }
+    .sched-result.live { background: rgba(251,191,36,0.14); color: var(--live); animation: blink 1.2s ease-in-out infinite; }
+    .sched-result.upcoming { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.35); font-family: 'DM Sans', sans-serif; font-size: 0.67rem; }
+
+    .sched-opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.68rem;
+      color: rgba(251,191,36,0.65);
+    }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.2rem 0; }
+
+    .schedule-list::-webkit-scrollbar { width: 3px; }
+    .schedule-list::-webkit-scrollbar-track { background: transparent; }
+    .schedule-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.62rem;
+      color: #252525;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════
+       TEAM SELECTOR PANEL
+    ═══════════════════════════════════════════════ */
+    .selector-wrapper {
+      width: 100%;
+      max-width: 1080px;
+      margin-top: 2.5rem;
+    }
+
+    .selector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .selector-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .selector-count {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.1em;
+    }
+
+    /* Search */
+    .selector-search-wrap {
+      position: relative;
+      margin-bottom: 0.75rem;
+    }
+    .selector-search {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.75);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 0.6rem 1rem 0.6rem 2.4rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .selector-search::placeholder { color: rgba(255,255,255,0.2); }
+    .selector-search:focus { border-color: rgba(255,255,255,0.18); }
+    .search-icon {
+      position: absolute;
+      left: 0.8rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.2);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+
+    /* Team list */
+    .team-browser {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 0.5rem;
+      max-height: 260px;
+      overflow-y: auto;
+      padding: 0.1rem;
+    }
+    .team-browser::-webkit-scrollbar { width: 4px; }
+    .team-browser::-webkit-scrollbar-track { background: transparent; }
+    .team-browser::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .team-option {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 9px;
+      background: var(--surface);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+      user-select: none;
+    }
+    .team-option:hover { background: var(--surface2); border-color: rgba(255,255,255,0.08); }
+    .team-option.selected {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .team-option.disabled { opacity: 0.28; pointer-events: none; }
+    .team-option.hate-option {
+      background: rgba(40,20,20,0.7);
+      border-color: rgba(255,50,50,0.08);
+    }
+    .team-option.hate-option.selected { border-color: rgba(255,50,50,0.2); }
+
+    .option-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .team-option.selected .option-check {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .option-emoji { font-size: 1rem; flex-shrink: 0; }
+    .option-info { min-width: 0; }
+    .option-name {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .option-conf {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.28);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Selected team chips (drag to reorder) */
+    .selected-section {
+      margin-bottom: 1rem;
+    }
+    .selected-label {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .selected-chips {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      min-height: 44px;
+      align-items: flex-start;
+    }
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.38rem 0.6rem 0.38rem 0.5rem;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: grab;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.75);
+    }
+    .chip:hover { background: #2c3040; border-color: rgba(255,255,255,0.18); }
+    .chip.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+    .chip.drag-over {
+      box-shadow: 2px 0 0 0 rgba(255,255,255,0.3);
+    }
+    .chip-emoji { font-size: 0.95rem; }
+    .chip-name { font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
+    .chip-remove {
+      margin-left: 0.1rem;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.3);
+      transition: color 0.15s, background 0.15s;
+    }
+    .chip-remove:hover { color: var(--no); background: rgba(248,113,113,0.12); }
+    .chip-drag-handle {
+      color: rgba(255,255,255,0.18);
+      font-size: 0.7rem;
+      cursor: grab;
+    }
+
+    .no-results {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 2rem 1rem;
+      color: rgba(255,255,255,0.2);
+      font-size: 0.8rem;
+    }
+
+    /* Separator */
+    .panel-sep {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      margin: 2rem 0;
+      width: 100%;
+      max-width: 1080px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Did We <em>Win?</em></h1>
+  <p class="subtitle">Men's Basketball · Live Scores</p>
+  <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
+</header>
+
+<div class="grid" id="grid">
+  <div class="empty-state">
+    <div class="empty-icon">🏀</div>
+    <p>Select your favorite teams below to get started</p>
+  </div>
+</div>
+
+<hr class="panel-sep">
+
+<div class="selector-wrapper">
+  <div class="selector-header">
+    <span class="selector-title">Your Teams</span>
+    <span class="selector-count" id="sel-count">0 / 5 selected · drag chips to reorder</span>
+  </div>
+
+  <!-- Selected chips -->
+  <div class="selected-section">
+    <div class="selected-label">Selected (drag to reorder)</div>
+    <div class="selected-chips" id="selected-chips"></div>
+  </div>
+
+  <!-- Search + browser -->
+  <div class="selector-search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="selector-search" id="team-search" type="text" placeholder="Search teams…" autocomplete="off" />
+  </div>
+  <div class="team-browser" id="team-browser"></div>
+</div>
+
+<footer>Data via ESPN · hover or tap a card to see the full schedule</footer>
+
+<script>
+// ─── TEAM DATABASE ─────────────────────────────────────────────────────────────
+// Each team: { id, display, short, emoji, sub, conf, confId, vibe }
+// vibe: 'love' (default) | 'hate' (enables the ugly/fun styling)
+const ALL_TEAMS = [
+  { id: '2',   display: 'Air Force',          short: 'Air Force',   emoji: '✈️',  conf: 'MW',    confId: '18' },
+  { id: '2510',display: 'Akron',              short: 'Akron',       emoji: '🦕',  conf: 'MAC',   confId: '14' },
+  { id: '5',   display: 'Alabama',            short: 'Alabama',     emoji: '🐘',  conf: 'SEC',   confId: '8'  },
+  { id: '6',   display: 'Albany',             short: 'Albany',      emoji: '🐺',  conf: 'AE',    confId: '173'},
+  { id: '7',   display: 'Alcorn State',       short: 'Alcorn St',   emoji: '🐍',  conf: 'SWAC',  confId: '79' },
+  { id: '8',   display: 'American',           short: 'American',    emoji: '🦅',  conf: 'Pat',   confId: '48' },
+  { id: '9',   display: 'Appalachian State',  short: 'App State',   emoji: '⛰️',  conf: 'SBC',   confId: '37' },
+  { id: '12',  display: 'Arizona',            short: 'Arizona',     emoji: '🐻',  conf: 'B12',   confId: '12' },
+  { id: '13',  display: 'Arizona State',      short: 'Arizona St',  emoji: '😈',  conf: 'B12',   confId: '12' },
+  { id: '25',  display: 'Arkansas',           short: 'Arkansas',    emoji: '🐗',  conf: 'SEC',   confId: '8'  },
+  { id: '24',  display: 'Arkansas-Little Rock',short: 'UALR',       emoji: '🔴',  conf: 'SBC',   confId: '37' },
+  { id: '26',  display: 'Arkansas State',     short: 'Ark State',   emoji: '🐺',  conf: 'SBC',   confId: '37' },
+  { id: '27',  display: 'Army',               short: 'Army',        emoji: '🎖️',  conf: 'Pat',   confId: '48' },
+  { id: '150', display: 'Auburn',             short: 'Auburn',      emoji: '🐯',  conf: 'SEC',   confId: '8'  },
+  { id: '2006',display: 'Austin Peay',        short: 'Austin Peay', emoji: '🟡',  conf: 'ASUN',  confId: '46' },
+  { id: '2050',display: 'Ball State',         short: 'Ball State',  emoji: '🔴',  conf: 'MAC',   confId: '14' },
+  { id: '68',  display: 'Baylor',             short: 'Baylor',      emoji: '🐻',  conf: 'B12',   confId: '12' },
+  { id: '2057',display: 'Belmont',            short: 'Belmont',     emoji: '🔵',  conf: 'MVC',   confId: '24' },
+  { id: '2066',display: 'Bethune-Cookman',    short: 'B-Cookman',   emoji: '🐾',  conf: 'SWAC',  confId: '79' },
+  { id: '252', display: 'Boise State',        short: 'Boise State', emoji: '🔵',  conf: 'MW',    confId: '18' },
+  { id: '103', display: 'Boston College',     short: 'BC',          emoji: '🦅',  conf: 'ACC',   confId: '2'  },
+  { id: '104', display: 'Boston University',  short: 'BU',          emoji: '🐾',  conf: 'Pat',   confId: '48' },
+  { id: '105', display: 'Bowling Green',      short: 'BGSU',        emoji: '🟠',  conf: 'MAC',   confId: '14' },
+  { id: '239', display: 'Bradley',            short: 'Bradley',     emoji: '🐹',  conf: 'MVC',   confId: '24' },
+  { id: '239',display: 'Bryant',              short: 'Bryant',      emoji: '🐶',  conf: 'AE',    confId: '173'},
+  { id: '2083',display: 'Bucknell',           short: 'Bucknell',    emoji: '🦬',  conf: 'Pat',   confId: '48' },
+  { id: '2', display: 'Buffalo',              short: 'Buffalo',     emoji: '🦬',  conf: 'MAC',   confId: '14' },
+  { id: '2116',display: 'Butler',             short: 'Butler',      emoji: '🐶',  conf: 'B10',   confId: '4'  },
+  { id: '25',  display: 'BYU',               short: 'BYU',         emoji: '🦁',  conf: 'B12',   confId: '12' },
+  { id: '234', display: 'Cal',               short: 'Cal',         emoji: '🐻',  conf: 'ACC',   confId: '2'  },
+  { id: '2117',display: 'Cal Poly',          short: 'Cal Poly',    emoji: '🐴',  conf: 'BW',    confId: '172'},
+  { id: '2429',display: 'Campbell',          short: 'Campbell',    emoji: '🐪',  conf: 'CAA',   confId: '47' },
+  { id: '120', display: 'Cincinnati',        short: 'Cincinnati',  emoji: '🐻',  conf: 'B12',   confId: '12' },
+  { id: '324', display: 'Clemson',           short: 'Clemson',     emoji: '🐅',  conf: 'ACC',   confId: '2'  },
+  { id: '325', display: 'Cleveland State',   short: 'Cleveland St',emoji: '⚔️',  conf: 'HL',    confId: '45' },
+  { id: '344', display: 'Coastal Carolina',  short: 'Coastal Car', emoji: '⚓',  conf: 'SBC',   confId: '37' },
+  { id: '138', display: 'Colorado',          short: 'Colorado',    emoji: '🦬',  conf: 'B12',   confId: '12' },
+  { id: '36',  display: 'Colorado State',    short: 'Colorado St', emoji: '🐏',  conf: 'MW',    confId: '18' },
+  { id: '41',  display: 'Columbia',          short: 'Columbia',    emoji: '🦁',  conf: 'Ivy',   confId: '22' },
+  { id: '42',  display: 'Connecticut',       short: 'UConn',       emoji: '🐕',  conf: 'BE',    confId: '22' },
+  { id: '2132',display: 'Coppin State',      short: 'Coppin St',   emoji: '🦅',  conf: 'MEAC',  confId: '55' },
+  { id: '45',  display: 'Cornell',           short: 'Cornell',     emoji: '🐻',  conf: 'Ivy',   confId: '22' },
+  { id: '46',  display: 'Creighton',         short: 'Creighton',   emoji: '🔵',  conf: 'BE',    confId: '22' },
+  { id: '150', display: 'Duke',              short: 'Duke',        emoji: '🤮',  conf: 'ACC',   confId: '2', vibe: 'hate' },
+  { id: '57',  display: 'Dayton',            short: 'Dayton',      emoji: '🔴',  conf: 'A10',   confId: '3'  },
+  { id: '2184',display: 'Delaware',          short: 'Delaware',    emoji: '💙',  conf: 'CAA',   confId: '47' },
+  { id: '2185',display: 'Denver',            short: 'Denver',      emoji: '⛷️',  conf: 'Sum',   confId: '23' },
+  { id: '2199',display: 'Drake',             short: 'Drake',       emoji: '🐶',  conf: 'MVC',   confId: '24' },
+  { id: '2211',display: 'Drexel',            short: 'Drexel',      emoji: '🐉',  conf: 'CAA',   confId: '47' },
+  { id: '218', display: 'Duke',              short: 'Duke',        emoji: '🤮',  conf: 'ACC',   confId: '2', vibe: 'hate' },
+  { id: '2210',display: 'Duquesne',          short: 'Duquesne',    emoji: '🦅',  conf: 'A10',   confId: '3'  },
+  { id: '2212',display: 'East Carolina',     short: 'ECU',         emoji: '🏴‍☠️',  conf: 'AAC',   confId: '151'},
+  { id: '2213',display: 'East Tennessee State',short: 'ETSU',      emoji: '🦬',  conf: 'SoCon', confId: '29' },
+  { id: '7',   display: 'Eastern Illinois', short: 'E Illinois',  emoji: '🐾',  conf: 'OVC',   confId: '19' },
+  { id: '257', display: 'Eastern Michigan', short: 'Eastern Mich',emoji: '🦅',  conf: 'MAC',   confId: '14' },
+  { id: '2233',display: 'Elon',             short: 'Elon',        emoji: '🕊️',  conf: 'CAA',   confId: '47' },
+  { id: '2234',display: 'Evansville',       short: 'Evansville',  emoji: '🟣',  conf: 'MVC',   confId: '24' },
+  { id: '278', display: 'Fairfield',        short: 'Fairfield',   emoji: '🦌',  conf: 'MAAC',  confId: '73' },
+  { id: '279', display: 'Florida',          short: 'Florida',     emoji: '🐊',  conf: 'SEC',   confId: '8'  },
+  { id: '275', display: 'Florida A&M',      short: 'FAMU',        emoji: '🐍',  conf: 'SWAC',  confId: '79' },
+  { id: '65',  display: 'Florida State',    short: 'Florida St',  emoji: '🏹',  conf: 'ACC',   confId: '2'  },
+  { id: '277', display: 'Florida Gulf Coast',short: 'FGCU',       emoji: '🦅',  conf: 'ASUN',  confId: '46' },
+  { id: '282', display: 'Fordham',          short: 'Fordham',     emoji: '🐏',  conf: 'A10',   confId: '3'  },
+  { id: '2298',display: 'Fresno State',     short: 'Fresno State',emoji: '🐕',  conf: 'MW',    confId: '18' },
+  { id: '290', display: 'Furman',           short: 'Furman',      emoji: '🟣',  conf: 'SoCon', confId: '29' },
+  { id: '304', display: 'Gardner-Webb',     short: 'Gardner-Webb',emoji: '🔵',  conf: 'BSky',  confId: '40' },
+  { id: '2305',display: 'George Mason',     short: 'G. Mason',    emoji: '🟢',  conf: 'A10',   confId: '3'  },
+  { id: '2306',display: 'George Washington',short: 'GW',          emoji: '🍒',  conf: 'A10',   confId: '3'  },
+  { id: '43',  display: 'Georgetown',       short: 'Georgetown',  emoji: '🐺',  conf: 'BE',    confId: '22' },
+  { id: '42',  display: 'Georgia',          short: 'Georgia',     emoji: '🐾',  conf: 'SEC',   confId: '8'  },
+  { id: '290', display: 'Georgia State',    short: 'Georgia State',emoji:'🔵',  conf: 'SBC',   confId: '37' },
+  { id: '61',  display: 'Georgia Tech',     short: 'Georgia Tech',emoji: '🐝',  conf: 'ACC',   confId: '2'  },
+  { id: '2309',display: 'Gonzaga',          short: 'Gonzaga',     emoji: '🐶',  conf: 'WCC',   confId: '26' },
+  { id: '2317',display: 'Grand Canyon',     short: 'GCU',         emoji: '🏜️',  conf: 'WAC',   confId: '32' },
+  { id: '2335',display: 'Hampton',          short: 'Hampton',     emoji: '🐾',  conf: 'CAA',   confId: '47' },
+  { id: '2348',display: 'Harvard',          short: 'Harvard',     emoji: '📚',  conf: 'Ivy',   confId: '22' },
+  { id: '84',  display: 'Hawaii',           short: 'Hawaiʻi',     emoji: '🌺',  conf: 'BW',    confId: '172'},
+  { id: '2350',display: 'High Point',       short: 'High Point',  emoji: '🔵',  conf: 'BSky',  confId: '40' },
+  { id: '99',  display: 'Houston',          short: 'Houston',     emoji: '🐾',  conf: 'B12',   confId: '12' },
+  { id: '2433',display: 'Idaho',            short: 'Idaho',       emoji: '🥔',  conf: 'BSky',  confId: '40' },
+  { id: '2430',display: 'Idaho State',      short: 'Idaho State', emoji: '🐻',  conf: 'BSky',  confId: '40' },
+  { id: '356', display: 'Illinois',         short: 'Illinois',    emoji: '🦣',  conf: 'B10',   confId: '4'  },
+  { id: '358', display: 'Illinois State',   short: 'Illinois St', emoji: '🔴',  conf: 'MVC',   confId: '24' },
+  { id: '360', display: 'Indiana',          short: 'Indiana',     emoji: '⛰️',  conf: 'B10',   confId: '4'  },
+  { id: '366', display: 'Iowa',             short: 'Iowa',        emoji: '🐻',  conf: 'B10',   confId: '4'  },
+  { id: '2439',display: 'Iowa State',       short: 'Iowa State',  emoji: '🌪️',  conf: 'B12',   confId: '12' },
+  { id: '368', display: 'Jacksonville',     short: 'Jacksonville',emoji: '🐬',  conf: 'ASUN',  confId: '46' },
+  { id: '2378',display: 'Jackson State',    short: 'Jackson St',  emoji: '🐯',  conf: 'SWAC',  confId: '79' },
+  { id: '113', display: 'James Madison',    short: 'JMU',         emoji: '🟣',  conf: 'SBC',   confId: '37' },
+  { id: '386', display: 'Kansas',           short: 'Kansas',      emoji: '🐦',  conf: 'B12',   confId: '12' },
+  { id: '2411',display: 'Kansas State',     short: 'K-State',     emoji: '🐾',  conf: 'B12',   confId: '12' },
+  { id: '2414',display: 'Kennesaw State',   short: 'KSU',         emoji: '🦉',  conf: 'ASUN',  confId: '46' },
+  { id: '96',  display: 'Kentucky',         short: 'Kentucky',    emoji: '🐱',  conf: 'SEC',   confId: '8'  },
+  { id: '2426',display: 'La Salle',         short: 'La Salle',    emoji: '💙',  conf: 'A10',   confId: '3'  },
+  { id: '413', display: 'Lafayette',        short: 'Lafayette',   emoji: '🦁',  conf: 'Pat',   confId: '48' },
+  { id: '2433',display: 'Lamar',            short: 'Lamar',       emoji: '🔴',  conf: 'WAC',   confId: '32' },
+  { id: '415', display: 'Lehigh',           short: 'Lehigh',      emoji: '🟤',  conf: 'Pat',   confId: '48' },
+  { id: '2335',display: 'Liberty',          short: 'Liberty',     emoji: '🔥',  conf: 'ASUN',  confId: '46' },
+  { id: '2421',display: 'Lipscomb',         short: 'Lipscomb',    emoji: '🦬',  conf: 'ASUN',  confId: '46' },
+  { id: '99',  display: 'Long Beach State', short: 'Long Beach',  emoji: '🌊',  conf: 'BW',    confId: '172'},
+  { id: '2434',display: 'Louisiana',        short: 'Louisiana',   emoji: '⚜️',  conf: 'SBC',   confId: '37' },
+  { id: '2435',display: 'Louisiana Monroe', short: 'ULM',         emoji: '🔴',  conf: 'SBC',   confId: '37' },
+  { id: '426', display: 'Louisiana Tech',   short: 'LA Tech',     emoji: '🔵',  conf: 'AAC',   confId: '151'},
+  { id: '97',  display: 'Louisville',       short: 'Louisville',  emoji: '🃏',  conf: 'ACC',   confId: '2'  },
+  { id: '430', display: 'Loyola Chicago',   short: 'Loyola Chi',  emoji: '⚓',  conf: 'MVC',   confId: '24' },
+  { id: '2436',display: 'Loyola Marymount', short: 'LMU',         emoji: '🦁',  conf: 'WCC',   confId: '26' },
+  { id: '2437',display: 'LSU',              short: 'LSU',         emoji: '🐯',  conf: 'SEC',   confId: '8'  },
+  { id: '193', display: 'Miami (OH)',        short: 'Miami OH',    emoji: '❤️',  conf: 'MAC',   confId: '14', vibe: 'love' },
+  { id: '87',  display: 'Miami',            short: 'Miami',       emoji: '🌊',  conf: 'ACC',   confId: '2'  },
+  { id: '127', display: 'Michigan',         short: 'Michigan',    emoji: '〽️',  conf: 'B10',   confId: '4'  },
+  { id: '127', display: 'Michigan State',   short: 'Mich State',  emoji: '💚',  conf: 'B10',   confId: '4'  },
+  { id: '457', display: 'Middle Tennessee', short: 'MTSU',        emoji: '🔵',  conf: 'AAC',   confId: '151'},
+  { id: '2571',display: 'Milwaukee',        short: 'Milwaukee',   emoji: '🦅',  conf: 'HL',    confId: '45' },
+  { id: '463', display: 'Minnesota',        short: 'Minnesota',   emoji: '🐿️',  conf: 'B10',   confId: '4'  },
+  { id: '156', display: 'Mississippi State',short: 'Miss State',  emoji: '🐶',  conf: 'SEC',   confId: '8'  },
+  { id: '235', display: 'Missouri',         short: 'Missouri',    emoji: '🐯',  conf: 'SEC',   confId: '8'  },
+  { id: '2572',display: 'Montana',          short: 'Montana',     emoji: '⛰️',  conf: 'BSky',  confId: '40' },
+  { id: '2578',display: 'Murray State',     short: 'Murray State',emoji: '🏇',  conf: 'MVC',   confId: '24' },
+  { id: '2649',display: 'Navy',             short: 'Navy',        emoji: '⚓',  conf: 'Pat',   confId: '48' },
+  { id: '2655',display: 'Nebraska',         short: 'Nebraska',    emoji: '🌽',  conf: 'B10',   confId: '4'  },
+  { id: '2459',display: 'Nevada',           short: 'Nevada',      emoji: '⚡',  conf: 'MW',    confId: '18' },
+  { id: '459', display: 'New Mexico',       short: 'New Mexico',  emoji: '🎈',  conf: 'MW',    confId: '18' },
+  { id: '153', display: 'North Carolina',   short: 'UNC',         emoji: '💙',  conf: 'ACC',   confId: '2', vibe: 'love'  },
+  { id: '152', display: 'NC State',         short: 'NC State',    emoji: '🐺',  conf: 'ACC',   confId: '2'  },
+  { id: '2459',display: 'North Dakota State',short: 'NDSU',       emoji: '🦬',  conf: 'Sum',   confId: '23' },
+  { id: '147', display: 'Northwestern',     short: 'Northwestern',emoji: '🐱',  conf: 'B10',   confId: '4'  },
+  { id: '153', display: 'North Carolina',   short: 'UNC',         emoji: '💙',  conf: 'ACC',   confId: '2', vibe: 'love'  },
+  { id: '59',  display: 'Notre Dame',       short: 'Notre Dame',  emoji: '☘️',  conf: 'ACC',   confId: '2'  },
+  { id: '2473',display: 'Oakland',          short: 'Oakland',     emoji: '🦌',  conf: 'HL',    confId: '45' },
+  { id: '2483',display: 'Ohio',             short: 'Ohio',        emoji: '🟢',  conf: 'MAC',   confId: '14' },
+  { id: '194', display: 'Ohio State',       short: 'Ohio State',  emoji: '🌰',  conf: 'B10',   confId: '4'  },
+  { id: '198', display: 'Oklahoma',         short: 'Oklahoma',    emoji: '🏹',  conf: 'SEC',   confId: '8'  },
+  { id: '197', display: 'Oklahoma State',   short: 'Okla State',  emoji: '🤠',  conf: 'B12',   confId: '12' },
+  { id: '2483',display: 'Old Dominion',     short: 'Old Dominion',emoji: '🦁',  conf: 'SBC',   confId: '37' },
+  { id: '164', display: 'Ole Miss',         short: 'Ole Miss',    emoji: '🐻',  conf: 'SEC',   confId: '8'  },
+  { id: '2509',display: 'Oral Roberts',     short: 'Oral Roberts',emoji: '🦅',  conf: 'Sum',   confId: '23' },
+  { id: '218', display: 'Oregon',           short: 'Oregon',      emoji: '🦆',  conf: 'B10',   confId: '4'  },
+  { id: '2518',display: 'Oregon State',     short: 'Oregon State',emoji: '🐻',  conf: 'PAC',   confId: '9'  },
+  { id: '66',  display: 'Penn State',       short: 'Penn State',  emoji: '🦁',  conf: 'B10',   confId: '4'  },
+  { id: '219', display: 'Pepperdine',       short: 'Pepperdine',  emoji: '🌊',  conf: 'WCC',   confId: '26' },
+  { id: '221', display: 'Pittsburgh',       short: 'Pitt',        emoji: '🐾',  conf: 'ACC',   confId: '2'  },
+  { id: '2530',display: 'Portland',         short: 'Portland',    emoji: '🌹',  conf: 'WCC',   confId: '26' },
+  { id: '2534',display: 'Prairie View A&M', short: 'PV A&M',      emoji: '🐾',  conf: 'SWAC',  confId: '79' },
+  { id: '228', display: 'Providence',       short: 'Providence',  emoji: '🔥',  conf: 'BE',    confId: '22' },
+  { id: '229', display: 'Purdue',           short: 'Purdue',      emoji: '🚂',  conf: 'B10',   confId: '4'  },
+  { id: '2548',display: 'Rice',             short: 'Rice',        emoji: '🦉',  conf: 'AAC',   confId: '151'},
+  { id: '2550',display: 'Richmond',         short: 'Richmond',    emoji: '🕷️',  conf: 'A10',   confId: '3'  },
+  { id: '238', display: 'Rutgers',          short: 'Rutgers',     emoji: '🦕',  conf: 'B10',   confId: '4'  },
+  { id: '2565',display: 'Saint Louis',      short: 'Saint Louis', emoji: '⚜️',  conf: 'A10',   confId: '3'  },
+  { id: '2562',display: 'Saint Mary\'s',    short: 'St Mary\'s',  emoji: '⚓',  conf: 'WCC',   confId: '26' },
+  { id: '2564',display: 'Sam Houston',      short: 'Sam Houston', emoji: '🤠',  conf: 'WAC',   confId: '32' },
+  { id: '183', display: 'San Diego State',  short: 'SDSU',        emoji: '🦅',  conf: 'MW',    confId: '18' },
+  { id: '2567',display: 'San Francisco',    short: 'USF',         emoji: '🌉',  conf: 'WCC',   confId: '26' },
+  { id: '300', display: 'Santa Clara',      short: 'Santa Clara', emoji: '🌹',  conf: 'WCC',   confId: '26' },
+  { id: '2593',display: 'Seton Hall',       short: 'Seton Hall',  emoji: '🔵',  conf: 'BE',    confId: '22' },
+  { id: '2596',display: 'Siena',            short: 'Siena',       emoji: '🟢',  conf: 'MAAC',  confId: '73' },
+  { id: '21',  display: 'SMU',              short: 'SMU',         emoji: '🐴',  conf: 'ACC',   confId: '2'  },
+  { id: '239', display: 'South Carolina',   short: 'South Car',   emoji: '🐓',  conf: 'SEC',   confId: '8'  },
+  { id: '245', display: 'South Florida',    short: 'USF',         emoji: '🐂',  conf: 'AAC',   confId: '151'},
+  { id: '2621',display: 'Southeast Missouri State',short:'SEMO',  emoji: '🟡',  conf: 'OVC',   confId: '19' },
+  { id: '71',  display: 'Southern Miss',    short: 'Southern Miss',emoji:'🦅',  conf: 'SBC',   confId: '37' },
+  { id: '2628',display: 'Southern Utah',    short: 'Southern Utah',emoji:'🦦',  conf: 'WAC',   confId: '32' },
+  { id: '251', display: 'St. Bonaventure', short: 'St Bonav',    emoji: '🟤',  conf: 'A10',   confId: '3'  },
+  { id: '2640',display: 'St. John\'s',      short: 'St John\'s',  emoji: '🔴',  conf: 'BE',    confId: '22' },
+  { id: '2641',display: 'Stanford',         short: 'Stanford',    emoji: '🌲',  conf: 'ACC',   confId: '2'  },
+  { id: '56',  display: 'Syracuse',         short: 'Syracuse',    emoji: '🍊',  conf: 'ACC',   confId: '2'  },
+  { id: '2653',display: 'TCU',              short: 'TCU',         emoji: '🐸',  conf: 'B12',   confId: '12' },
+  { id: '2655',display: 'Temple',           short: 'Temple',      emoji: '🦉',  conf: 'AAC',   confId: '151'},
+  { id: '2658',display: 'Tennessee',        short: 'Tennessee',   emoji: '🍊',  conf: 'SEC',   confId: '8'  },
+  { id: '2659',display: 'Tennessee State',  short: 'Tenn State',  emoji: '🐯',  conf: 'OVC',   confId: '19' },
+  { id: '2661',display: 'Tennessee Tech',   short: 'Tenn Tech',   emoji: '🦅',  conf: 'OVC',   confId: '19' },
+  { id: '251', display: 'Texas',            short: 'Texas',       emoji: '🤘',  conf: 'SEC',   confId: '8'  },
+  { id: '2665',display: 'Texas A&M',        short: 'Texas A&M',   emoji: '🐶',  conf: 'SEC',   confId: '8'  },
+  { id: '2666',display: 'Texas State',      short: 'Texas State', emoji: '🐱',  conf: 'SBC',   confId: '37' },
+  { id: '2670',display: 'Texas Tech',       short: 'Texas Tech',  emoji: '🔴',  conf: 'B12',   confId: '12' },
+  { id: '2875',display: 'The Citadel',      short: 'The Citadel', emoji: '⚔️',  conf: 'SoCon', confId: '29' },
+  { id: '2710',display: 'Toledo',           short: 'Toledo',      emoji: '🟡',  conf: 'MAC',   confId: '14' },
+  { id: '2116',display: 'Towson',           short: 'Towson',      emoji: '🐯',  conf: 'CAA',   confId: '47' },
+  { id: '2719',display: 'Troy',             short: 'Troy',        emoji: '🐴',  conf: 'SBC',   confId: '37' },
+  { id: '2720',display: 'Tulane',           short: 'Tulane',      emoji: '🌊',  conf: 'AAC',   confId: '151'},
+  { id: '202', display: 'Tulsa',            short: 'Tulsa',       emoji: '🌪️',  conf: 'AAC',   confId: '151'},
+  { id: '2242',display: 'UAB',              short: 'UAB',         emoji: '🐉',  conf: 'AAC',   confId: '151'},
+  { id: '2724',display: 'UC Davis',         short: 'UC Davis',    emoji: '🐄',  conf: 'BW',    confId: '172'},
+  { id: '2725',display: 'UC Irvine',        short: 'UC Irvine',   emoji: '🐜',  conf: 'BW',    confId: '172'},
+  { id: '2726',display: 'UC Riverside',     short: 'UC Riverside',emoji: '🐻',  conf: 'BW',    confId: '172'},
+  { id: '2727',display: 'UC San Diego',     short: 'UC San Diego',emoji: '🌊',  conf: 'BW',    confId: '172'},
+  { id: '2728',display: 'UC Santa Barbara', short: 'UCSB',        emoji: '🏄',  conf: 'BW',    confId: '172'},
+  { id: '2116',display: 'UCF',              short: 'UCF',         emoji: '⚔️',  conf: 'B12',   confId: '12' },
+  { id: '2390',display: 'UCLA',             short: 'UCLA',        emoji: '🐻',  conf: 'B10',   confId: '4'  },
+  { id: '2729',display: 'UNLV',             short: 'UNLV',        emoji: '🎲',  conf: 'MW',    confId: '18' },
+  { id: '2751',display: 'Utah',             short: 'Utah',        emoji: '🦅',  conf: 'B12',   confId: '12' },
+  { id: '252', display: 'Utah State',       short: 'Utah State',  emoji: '🐴',  conf: 'MW',    confId: '18' },
+  { id: '2752',display: 'Utah Valley',      short: 'Utah Valley', emoji: '🦅',  conf: 'WAC',   confId: '32' },
+  { id: '258', display: 'Vanderbilt',       short: 'Vanderbilt',  emoji: '⭐',  conf: 'SEC',   confId: '8'  },
+  { id: '261', display: 'Vermont',          short: 'Vermont',     emoji: '🍁',  conf: 'AE',    confId: '173'},
+  { id: '2762',display: 'Villanova',        short: 'Villanova',   emoji: '🐱',  conf: 'BE',    confId: '22' },
+  { id: '2765',display: 'Virginia',         short: 'Virginia',    emoji: '🟠',  conf: 'ACC',   confId: '2'  },
+  { id: '2766',display: 'Virginia Tech',    short: 'Virginia Tech',emoji:'🦃',  conf: 'ACC',   confId: '2'  },
+  { id: '2529',display: 'VCU',              short: 'VCU',         emoji: '🐏',  conf: 'A10',   confId: '3'  },
+  { id: '276', display: 'Wake Forest',      short: 'Wake Forest', emoji: '😈',  conf: 'ACC',   confId: '2'  },
+  { id: '265', display: 'Washington',       short: 'Washington',  emoji: '🐕',  conf: 'B10',   confId: '4'  },
+  { id: '265', display: 'Washington State', short: 'Wazzu',       emoji: '🐾',  conf: 'MWC',   confId: '18' },
+  { id: '2724',display: 'Weber State',      short: 'Weber State', emoji: '🐝',  conf: 'BSky',  confId: '40' },
+  { id: '2724',display: 'West Virginia',    short: 'West Virginia',emoji:'⛰️',  conf: 'B12',   confId: '12' },
+  { id: '2725',display: 'Western Kentucky', short: 'WKU',         emoji: '🔴',  conf: 'AAC',   confId: '151'},
+  { id: '2726',display: 'Western Michigan', short: 'Western Mich',emoji:'🤙',  conf: 'MAC',   confId: '14' },
+  { id: '2725',display: 'Wichita State',    short: 'Wichita State',emoji:'🌾',  conf: 'AAC',   confId: '151'},
+  { id: '2750',display: 'William & Mary',   short: 'W&M',         emoji: '👑',  conf: 'CAA',   confId: '47' },
+  { id: '2752',display: 'Wisconsin',        short: 'Wisconsin',   emoji: '🦡',  conf: 'B10',   confId: '4'  },
+  { id: '2755',display: 'Wofford',          short: 'Wofford',     emoji: '🐕',  conf: 'SoCon', confId: '29' },
+  { id: '2759',display: 'Wyoming',          short: 'Wyoming',     emoji: '🤠',  conf: 'MW',    confId: '18' },
+  { id: '2760',display: 'Xavier',           short: 'Xavier',      emoji: '🐉',  conf: 'BE',    confId: '22' },
+  { id: '275', display: 'Yale',             short: 'Yale',        emoji: '🐶',  conf: 'Ivy',   confId: '22' },
+];
+
+// Proper ESPN IDs for commonly watched teams — overrides the table above:
+const PROPER_IDS = {
+  'Alabama': '5', 'Arizona': '12', 'Arizona State': '13', 'Arkansas': '25',
+  'Auburn': '2', 'Baylor': '68', 'BYU': '252', 'Cincinnati': '120',
+  'Clemson': '324', 'Colorado': '138', 'Colorado State': '36', 'Connecticut': '41',
+  'Creighton': '46', 'Dayton': '57', 'Duke': '150', 'Florida': '57',
+  'Florida State': '52', 'Georgetown': '43', 'Georgia': '61',
+  'Georgia Tech': '59', 'Gonzaga': '2309', 'Houston': '248', 'Illinois': '356',
+  'Indiana': '360', 'Iowa': '2294', 'Iowa State': '66', 'Kansas': '2305',
+  'Kansas State': '2306', 'Kentucky': '96', 'LSU': '99', 'Louisville': '97',
+  'Marquette': '269', 'Maryland': '97', 'Memphis': '235',
+  'Miami (OH)': '193', 'Miami': '201', 'Michigan': '130', 'Michigan State': '127',
+  'Minnesota': '135', 'Mississippi State': '344', 'Missouri': '142',
+  'Nebraska': '158', 'North Carolina': '153', 'NC State': '152', 'Northwestern': '77',
+  'Notre Dame': '87', 'Ohio State': '194', 'Oklahoma': '201', 'Oklahoma State': '197',
+  'Ole Miss': '145', 'Oregon': '2483', 'Penn State': '213', 'Pitt': '221',
+  'Providence': '228', 'Purdue': '2509', 'Rutgers': '164', 'San Diego State': '21',
+  'Seton Hall': '2599', 'SMU': '2567', 'Stanford': '24', 'Syracuse': '183',
+  'TCU': '2628', 'Tennessee': '2633', 'Texas': '251', 'Texas A&M': '245',
+  'Texas Tech': '2641', 'UCLA': '26', 'UNLV': '2439', 'Utah': '254',
+  'Vanderbilt': '238', 'Villanova': '222', 'Virginia': '258', 'Virginia Tech': '259',
+  'VCU': '2670', 'Wake Forest': '154', 'Washington': '264', 'West Virginia': '277',
+  'Wisconsin': '275', 'Xavier': '2752',
+};
+
+// Build clean deduplicated list with proper IDs
+const TEAM_LIST = (() => {
+  const seen = new Set();
+  return ALL_TEAMS
+    .map(t => ({ ...t, id: PROPER_IDS[t.display] || t.id }))
+    .filter(t => { const key = t.display; if (seen.has(key)) return false; seen.add(key); return true; })
+    .sort((a, b) => a.display.localeCompare(b.display));
+})();
+
+// Card color themes (love teams get a color based on their index)
+const LOVE_THEMES = [
+  { bg: 'linear-gradient(145deg, #1a3a6b 0%, #2355a0 55%, #3470c8 100%)', shadow: 'rgba(35,85,160,0.4)' },
+  { bg: 'linear-gradient(145deg, #1a5c2e 0%, #237a3d 55%, #2e9e50 100%)', shadow: 'rgba(35,122,61,0.4)' },
+  { bg: 'linear-gradient(145deg, #6b1a1a 0%, #a02323 55%, #c83434 100%)', shadow: 'rgba(160,35,35,0.4)' },
+  { bg: 'linear-gradient(145deg, #4a1a6b 0%, #6c23a0 55%, #8a34c8 100%)', shadow: 'rgba(108,35,160,0.4)' },
+  { bg: 'linear-gradient(145deg, #1a4a5c 0%, #237a8e 55%, #2e9eb8 100%)', shadow: 'rgba(35,122,142,0.4)' },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'dww_selected_teams_v2';
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const ids = JSON.parse(raw);
+    return ids.map(id => TEAM_LIST.find(t => t.display === id)).filter(Boolean);
+  } catch { return []; }
+}
+function saveSaved(teams) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(teams.map(t => t.display))); } catch {}
+}
+
+let selectedTeams = loadSaved();
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+const fmtTime = d => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+const fmtDateShort = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+
+function smartDate(dateStr, isUpcoming) {
+  const now   = new Date();
+  const game  = new Date(dateStr);
+  const etNow  = new Date(now.toLocaleString('en-US',  { timeZone: 'America/New_York' }));
+  const etGame = new Date(game.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const diffDays = Math.round((etGame.setHours(0,0,0,0) - etNow.setHours(0,0,0,0)) / 86400000);
+  const gameHour = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'America/New_York' })).getHours();
+  const isEvening = gameHour >= 19;
+  if (diffDays === 0)  return isEvening ? 'Tonight' : 'Today';
+  if (diffDays === 1)  return isEvening ? 'Tomorrow night' : 'Tomorrow';
+  if (diffDays === -1) return isEvening ? 'Last night' : 'Yesterday';
+  if (diffDays === 2)  return 'In 2 days';
+  return fmtDateShort(dateStr);
+}
+
+function teamMatches(c, teamId) {
+  return c.team?.id === teamId || c.team?.id === String(teamId) ||
+         c.id === teamId || c.id === String(teamId);
+}
+function getMe(comp, teamId)  { return comp.competitors?.find(c => teamMatches(c, teamId)); }
+function getOpp(comp, teamId) { return comp.competitors?.find(c => !teamMatches(c, teamId)); }
+
+function extractScore(c) {
+  if (!c) return '?';
+  const s = c.score;
+  if (s == null) return '?';
+  if (typeof s === 'object') return s.displayValue ?? s.value ?? '?';
+  return s;
+}
+
+function periodLabel(comp) {
+  const s = comp.status;
+  if (!s) return '';
+  const p = s.period || 0;
+  const half = p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT';
+  const clock = s.displayClock;
+  return (clock && clock !== '0:00') ? `${half} · ${clock}` : half;
+}
+
+// ─── FETCH ───────────────────────────────────────────────────────────────────
+async function fetchTeam(team) {
+  const [schedRes, summaryRes] = await Promise.all([
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
+  ]);
+  if (!schedRes.ok) throw new Error(`HTTP ${schedRes.status}`);
+  const data        = await schedRes.json();
+  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+  const events = (data.events || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let lastCompleted = null, liveGame = null, nextGame = null;
+  const allGames = [];
+
+  for (const ev of events) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+    const state = comp.status?.type?.state;
+    allGames.push({ ev, comp, state });
+    if      (state === 'post')               lastCompleted = { ev, comp };
+    else if (state === 'in')                 liveGame      = { ev, comp };
+    else if (state === 'pre' && !nextGame)   nextGame      = { ev, comp };
+  }
+
+  const teamInfo  = summaryData?.team || data.team || {};
+  const recItems  = teamInfo?.record?.items || data.team?.record?.items || [];
+  const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
+  const recordStr = totalRec?.summary || '';
+
+  let confRecordStr = '';
+  try {
+    const confRes = await fetch(
+      `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/2026/types/2/groups/${team.confId}/teams/${team.id}/records/9`,
+      { cache: 'no-store' }
+    );
+    if (confRes.ok) {
+      const confData = await confRes.json();
+      confRecordStr = confData.summary || confData.displayValue || '';
+    }
+  } catch(e) {
+    confRecordStr = data.team?.standingSummary || '';
+  }
+
+  let apRank = null;
+  const rankNum = teamInfo?.rank;
+  if (rankNum && Number(rankNum) > 0 && Number(rankNum) < 26) apRank = Number(rankNum);
+  if (!apRank) {
+    const rankSummary = teamInfo?.rankSummary;
+    if (rankSummary) { const m = String(rankSummary).match(/(\d+)/); if (m && Number(m[1]) < 26) apRank = Number(m[1]); }
+  }
+  if (!apRank && lastCompleted) {
+    const me = getMe(lastCompleted.comp, team.id);
+    const r  = me?.curatedRank?.current;
+    if (r && r > 0 && r < 26) apRank = r;
+  }
+
+  if (liveGame) {
+    try {
+      const liveRes = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=${liveGame.ev.id}`,
+        { cache: 'no-store' }
+      );
+      if (liveRes.ok) {
+        const liveData = await liveRes.json();
+        const liveComp = liveData.header?.competitions?.[0];
+        if (liveComp) liveGame.comp = liveComp;
+      }
+    } catch(e) {}
+  }
+
+  return { team, lastCompleted, liveGame, nextGame, allGames, recordStr, confRecordStr, apRank };
+}
+
+function getOppRank(comp, teamId) {
+  const opp = getOpp(comp, teamId);
+  if (!opp) return null;
+  const r = opp.curatedRank?.current || opp.rank;
+  return (r && r < 26) ? r : null;
+}
+
+// ─── RENDER FRONT ─────────────────────────────────────────────────────────────
+function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confRecordStr, apRank }) {
+  const tid = team.id;
+  const tagClass = team.vibe === 'hate' ? 'hate-tag' : 'love-tag';
+  const tagText  = team.vibe === 'hate' ? '🗑️ boo' : team.vibe === 'love' ? '💪 our team' : null;
+
+  let answerHTML = '', liveDetailsHTML = '';
+
+  if (liveGame) {
+    const me  = getMe(liveGame.comp, tid);
+    const opp = getOpp(liveGame.comp, tid);
+    const myS  = extractScore(me), oppS = extractScore(opp);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(liveGame.comp, tid);
+    const atStr  = me?.homeAway === 'home' ? 'vs' : '@';
+    const rankBit = oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : '';
+    const myScoreN = parseInt(myS) || 0, oppScoreN = parseInt(oppS) || 0;
+    const winBit = (myScoreN > 0 || oppScoreN > 0)
+      ? (myScoreN > oppScoreN ? ' <span class="winning-tag">▲ Winning</span>'
+       : myScoreN < oppScoreN ? ' <span class="winning-tag losing">▼ Losing</span>'
+       : ' <span class="winning-tag tied">Tied</span>') : '';
+    answerHTML      = `<div class="answer live">LIVE</div>`;
+    liveDetailsHTML = `
+      <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
+      <div class="live-opponent">${atStr}${rankBit} <strong>${oppName}</strong></div>`;
+  } else if (lastCompleted) {
+    const me  = getMe(lastCompleted.comp, tid);
+    const won = me?.winner === true;
+    const yesEmoji = team.vibe === 'hate' ? '😒' : '🎉';
+    const noEmoji  = team.vibe === 'hate' ? '😂' : '😬';
+    answerHTML = `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES ' + yesEmoji : 'NO ' + noEmoji}</div>`;
+  } else {
+    answerHTML = `<div class="answer tbd">—</div>`;
+  }
+
+  const rankHTML  = apRank ? `<span class="rank-badge">#${apRank} AP</span>` : '';
+  const recParts  = [];
+  if (recordStr)     recParts.push(`<span class="rec-item">${recordStr} overall</span>`);
+  if (confRecordStr) recParts.push(`<span class="rec-item conf">${confRecordStr}</span>`);
+  const statsHTML = (rankHTML || recParts.length) ? `<div class="stats-row">${rankHTML}${recParts.join('')}</div>` : '';
+
+  let lastGameHTML = '';
+  if (lastCompleted) {
+    const { ev, comp } = lastCompleted;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const won = me?.winner === true;
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const when  = smartDate(ev.date, false);
+    lastGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Last game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+        </div>
+      </div>`;
+  }
+
+  let nextGameHTML = '';
+  if (nextGame) {
+    const { ev, comp } = nextGame;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const when  = smartDate(ev.date, true);
+    const time  = fmtTime(ev.date);
+    nextGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Next game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge up">${time}</span>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="team-header">
+      <span class="team-emoji">${team.emoji}</span>
+      <div class="team-name-row"><span class="team-name">${team.display}</span></div>
+      ${tagText ? `<div class="team-tag-row"><span class="${tagClass}">${tagText}</span></div>` : ''}
+      <div class="team-sub">${team.conf} · ${team.short}</div>
+    </div>
+    ${answerHTML}
+    ${liveDetailsHTML}
+    ${statsHTML}
+    ${lastGameHTML}
+    ${nextGameHTML}
+    <div class="hint"><span class="hint-hover">hover</span><span class="hint-tap">tap</span> for schedule ↗</div>
+  `;
+}
+
+// ─── RENDER BACK ──────────────────────────────────────────────────────────────
+function renderBack({ team, allGames, liveGame, nextGame, apRank, recordStr, confRecordStr }) {
+  const tid = team.id;
+  const completed = allGames.filter(g => g.state === 'post').slice(-5);
+  const live      = allGames.filter(g => g.state === 'in');
+  const upcoming  = allGames.filter(g => g.state === 'pre').slice(0, 5);
+
+  const completedRows = completed.map(({ ev, comp }) => {
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const won   = me?.winner === true;
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const when  = smartDate(ev.date, false);
+    const rStr  = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row">
+      <span class="sched-date">${when}</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+    </div>`;
+  }).join('');
+
+  const liveRows = live.map(({ ev, comp: rawComp }) => {
+    const comp = (liveGame && liveGame.ev.id === ev.id) ? liveGame.comp : rawComp;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const rStr  = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row current">
+      <span class="sched-date">Now</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result live">LIVE ${myS}–${oppS} · ${periodLabel(comp)}</span>
+    </div>`;
+  }).join('');
+
+  const upcomingRows = upcoming.map(({ ev, comp }, i) => {
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr  = me?.homeAway === 'home' ? 'vs' : '@';
+    const isNext = i === 0 && !live.length;
+    const when   = smartDate(ev.date, true);
+    const time   = fmtTime(ev.date);
+    const rStr   = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row ${isNext ? 'current' : ''}">
+      <span class="sched-date">${when}</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result upcoming">${time}</span>
+    </div>`;
+  }).join('');
+
+  const rankStr = apRank ? `<span class="back-rank">#${apRank} AP</span>` : '';
+  const recStr  = recordStr ? `<span class="back-rec">${recordStr}</span>` : '';
+  const confStr = confRecordStr ? `<span class="back-rec conf">${confRecordStr}</span>` : '';
+
+  return `
+    <div class="back-header">
+      <span class="back-title">${team.emoji} Schedule</span>
+      <span class="back-meta">${rankStr}${recStr}${confStr}</span>
+    </div>
+    <div class="schedule-list">
+      ${completedRows}
+      ${(liveRows || upcomingRows) ? '<div class="divider"></div>' : ''}
+      ${liveRows}
+      ${upcomingRows}
+    </div>
+  `;
+}
+
+// ─── RENDER CARD ──────────────────────────────────────────────────────────────
+function getCardTheme(team, idx) {
+  if (team.vibe === 'hate') return { cls: 'hate-card', style: '' };
+  const theme = LOVE_THEMES[idx % LOVE_THEMES.length];
+  return {
+    cls: 'love-card',
+    style: `--card-bg:${theme.bg};--card-shadow:${theme.shadow};`
+  };
+}
+
+function renderCard(result, idx) {
+  const { cls, style } = getCardTheme(result.team, idx);
+  return `
+    <div class="card ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);box-shadow:0 8px 40px var(--card-shadow),0 0 0 1px rgba(255,255,255,0.06);`:''}" onclick="this.classList.toggle('flipped')">
+      <div class="card-front">${renderFront(result)}</div>
+      <div class="card-back">${renderBack(result)}</div>
+    </div>`;
+}
+
+function renderError(team, idx) {
+  const { cls, style } = getCardTheme(team, idx);
+  return `
+    <div class="card ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);`:'' }">
+      <div class="card-front">
+        <div><span class="team-emoji">${team.emoji}</span><span class="team-name">${team.display}</span></div>
+        <div class="answer tbd">—</div>
+        <div style="color:rgba(255,255,255,0.2);font-size:0.72rem;font-style:italic">Couldn't load · will retry</div>
+      </div>
+      <div class="card-back"><div class="back-title">No data</div></div>
+    </div>`;
+}
+
+// ─── MAIN LOAD ────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const grid = document.getElementById('grid');
+  if (!selectedTeams.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🏀</div><p>Select your favorite teams below to get started</p></div>`;
+    return;
+  }
+
+  if (!grid.children.length || grid.querySelector('.empty-state')) {
+    grid.innerHTML = selectedTeams.map((t, i) => {
+      const { cls, style } = getCardTheme(t, i);
+      return `<div class="card loading ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);`:''}" >
+        <div class="card-front">
+          <div><span class="team-emoji">${t.emoji}</span><span class="team-name">${t.display}</span></div>
+          <div class="answer tbd" style="margin-top:auto">…</div>
+        </div>
+        <div class="card-back"></div>
+      </div>`;
+    }).join('');
+  }
+
+  const results = await Promise.allSettled(selectedTeams.map(fetchTeam));
+
+  grid.innerHTML = results.map((r, i) =>
+    r.status === 'fulfilled' ? renderCard(r.value, i) : renderError(selectedTeams[i], i)
+  ).join('');
+
+  document.getElementById('last-updated').textContent =
+    new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning'); btn.disabled = true;
+  loadAll().finally(() => { btn.classList.remove('spinning'); btn.disabled = false; });
+}
+
+// ─── SELECTOR ─────────────────────────────────────────────────────────────────
+let searchQuery = '';
+let dragSrcIdx  = null;
+
+function isSelected(team) { return selectedTeams.some(t => t.display === team.display); }
+
+function toggleTeam(team) {
+  if (isSelected(team)) {
+    selectedTeams = selectedTeams.filter(t => t.display !== team.display);
+  } else if (selectedTeams.length < 5) {
+    selectedTeams = [...selectedTeams, team];
+  }
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function removeTeam(display) {
+  selectedTeams = selectedTeams.filter(t => t.display !== display);
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function renderChips() {
+  const container = document.getElementById('selected-chips');
+  if (!selectedTeams.length) {
+    container.innerHTML = '<span style="color:rgba(255,255,255,0.15);font-size:0.75rem;">No teams selected yet</span>';
+    return;
+  }
+  container.innerHTML = selectedTeams.map((t, i) => `
+    <div class="chip" draggable="true" data-idx="${i}"
+         ondragstart="dragStart(event,${i})"
+         ondragover="dragOver(event,${i})"
+         ondrop="dropOn(event,${i})"
+         ondragend="dragEnd(event)">
+      <span class="chip-drag-handle">⠿</span>
+      <span class="chip-emoji">${t.emoji}</span>
+      <span class="chip-name">${t.short || t.display}</span>
+      <span class="chip-remove" onclick="removeTeam('${t.display.replace(/'/g,"\\'")}')">✕</span>
+    </div>`).join('');
+}
+
+function renderBrowser() {
+  const container = document.getElementById('team-browser');
+  const q = searchQuery.toLowerCase().trim();
+  const filtered = q
+    ? TEAM_LIST.filter(t => t.display.toLowerCase().includes(q) || t.conf.toLowerCase().includes(q))
+    : TEAM_LIST;
+
+  const maxReached = selectedTeams.length >= 5;
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="no-results">No teams found</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const sel = isSelected(t);
+    const dis = maxReached && !sel;
+    const hateClass = t.vibe === 'hate' ? 'hate-option' : '';
+    return `<div class="team-option ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''} ${hateClass}"
+                 onclick="toggleTeam(TEAM_LIST.find(x=>x.display==='${t.display.replace(/'/g,"\\'")}'))">
+      <div class="option-check">${sel ? '✓' : ''}</div>
+      <span class="option-emoji">${t.emoji}</span>
+      <div class="option-info">
+        <div class="option-name">${t.display}</div>
+        <div class="option-conf">${t.conf}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSelector() {
+  renderChips();
+  renderBrowser();
+  document.getElementById('sel-count').textContent =
+    `${selectedTeams.length} / 5 selected · drag chips to reorder`;
+}
+
+// Search
+document.getElementById('team-search').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  renderBrowser();
+});
+
+// Drag to reorder
+function dragStart(e, idx) {
+  dragSrcIdx = idx;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function dragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('drag-over'));
+  if (idx !== dragSrcIdx) e.currentTarget.classList.add('drag-over');
+}
+function dropOn(e, toIdx) {
+  e.preventDefault();
+  if (dragSrcIdx === null || dragSrcIdx === toIdx) return;
+  const moved = selectedTeams.splice(dragSrcIdx, 1)[0];
+  selectedTeams.splice(toIdx, 0, moved);
+  dragSrcIdx = null;
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+function dragEnd(e) {
+  dragSrcIdx = null;
+  document.querySelectorAll('.chip').forEach(c => { c.classList.remove('dragging'); c.classList.remove('drag-over'); });
+}
+
+// Boot
+renderSelector();
+loadAll();
+setInterval(loadAll, 60_000);
+</script>
+</body>
+</html>
