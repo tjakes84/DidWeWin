@@ -1058,29 +1058,81 @@ const ALL_TEAMS = [
   { id: '275', display: 'Yale',             short: 'Yale',        emoji: '🐶',  conf: 'Ivy',   confId: '22' },
 ];
 
-// Proper ESPN IDs for commonly watched teams — overrides the table above:
+// Verified ESPN team IDs (from espn.com/mens-college-basketball/team/_/id/NNN URLs)
 const PROPER_IDS = {
-  'Alabama': '5', 'Arizona': '12', 'Arizona State': '13', 'Arkansas': '25',
-  'Auburn': '2', 'Baylor': '68', 'BYU': '252', 'Cincinnati': '120',
-  'Clemson': '324', 'Colorado': '138', 'Colorado State': '36', 'Connecticut': '41',
-  'Creighton': '46', 'Dayton': '57', 'Dook': '150', 'Florida': '57',
-  'Florida State': '52', 'Georgetown': '43', 'Georgia': '61',
-  'Georgia Tech': '59', 'Gonzaga': '2309', 'Houston': '248', 'Illinois': '356',
-  'Indiana': '360', 'Iowa': '2294', 'Iowa State': '66', 'Kansas': '2305',
-  'Kansas State': '2306', 'Kentucky': '96', 'LSU': '99', 'Louisville': '97',
-  'Marquette': '269', 'Maryland': '97', 'Memphis': '235',
-  'Miami (OH)': '193', 'Miami': '201', 'Michigan': '130', 'Michigan State': '127',
-  'Minnesota': '135', 'Mississippi State': '344', 'Missouri': '142',
-  'Nebraska': '158', 'North Carolina': '153', 'NC State': '152', 'Northwestern': '77',
-  'Notre Dame': '87', 'Ohio State': '194', 'Oklahoma': '201', 'Oklahoma State': '197',
-  'Ole Miss': '145', 'Oregon': '2483', 'Penn State': '213', 'Pitt': '221',
-  'Providence': '228', 'Purdue': '2509', 'Rutgers': '164', 'San Diego State': '21',
-  'Seton Hall': '2599', 'SMU': '2567', 'Stanford': '24', 'Syracuse': '183',
-  'TCU': '2628', 'Tennessee': '2633', 'Texas': '251', 'Texas A&M': '245',
-  'Texas Tech': '2641', 'UCLA': '26', 'UNLV': '2439', 'Utah': '254',
-  'Vanderbilt': '238', 'Villanova': '222', 'Virginia': '258', 'Virginia Tech': '259',
-  'VCU': '2670', 'Wake Forest': '154', 'Washington': '264', 'West Virginia': '277',
-  'Wisconsin': '275', 'Xavier': '2752',
+  // A
+  'Air Force': '2005', 'Akron': '2006', 'Alabama': '5', 'Alabama A&M': '2010',
+  'Alabama State': '2011', 'Albany': '399', 'Alcorn State': '2016', 'American': '8',
+  'Appalachian State': '2026', 'Arizona': '12', 'Arizona State': '13',
+  'Arkansas': '25', 'Arkansas State': '2032', 'Army': '349', 'Auburn': '2',
+  // B
+  'Ball State': '2050', 'Baylor': '239', 'Belmont': '2057', 'Boise State': '68',
+  'Boston College': '103', 'Boston University': '104', 'Bowling Green': '189',
+  'Bradley': '71', 'BYU': '252', 'Buffalo': '2083',
+  'Butler': '2110', 'Bucknell': '2084',
+  // C
+  'Cal': '234', 'Campbell': '2429', 'Cincinnati': '41', 'Clemson': '228',
+  'Coastal Carolina': '324', 'Colorado': '38', 'Colorado State': '36',
+  'Columbia': '171', 'Connecticut': '41',
+  'Coppin State': '2132', 'Cornell': '172', 'Creighton': '156',
+  // D
+  'Dayton': '2168', 'Delaware': '2184', 'Denver': '2185', 'Dook': '150',
+  'Drake': '2199', 'Drexel': '2211', 'Duquesne': '2210',
+  // E
+  'East Carolina': '151', 'East Tennessee State': '2213',
+  'Eastern Illinois': '2210', 'Eastern Michigan': '2199', 'Elon': '2233',
+  // F
+  'Florida': '57', 'Florida A&M': '2212', 'Florida Gulf Coast': '526',
+  'Florida State': '52', 'Fordham': '2238', 'Fresno State': '278', 'Furman': '231',
+  // G
+  'George Mason': '2305', 'George Washington': '2306', 'Georgetown': '43',
+  'Georgia': '61', 'Georgia State': '2247', 'Georgia Tech': '59',
+  'Gonzaga': '2309', 'Grand Canyon': '2253',
+  // H
+  'Hampton': '2335', 'Harvard': '108', 'Hawaii': '62', 'Houston': '248',
+  // I
+  'Idaho': '70', 'Idaho State': '304', 'Illinois': '356', 'Illinois State': '2198',
+  'Indiana': '84', 'Iowa': '2294', 'Iowa State': '66',
+  // J
+  'Jackson State': '2378', 'James Madison': '256', 'Jacksonville': '294',
+  // K
+  'Kansas': '2305', 'Kansas State': '2306', 'Kentucky': '96',
+  // L
+  'La Salle': '2426', 'Lafayette': '322', 'Lehigh': '322', 'Liberty': '2335',
+  'Lipscomb': '2380', 'Louisiana': '309', 'Louisiana Tech': '2392',
+  'Louisville': '97', 'Loyola Chicago': '2404', 'LSU': '99',
+  // M
+  'Marquette': '269', 'Maryland': '120', 'Memphis': '235',
+  'Miami': '201', 'Miami (OH)': '193', 'Michigan': '130', 'Michigan State': '127',
+  'Middle Tennessee': '2393', 'Minnesota': '135', 'Mississippi State': '344',
+  'Missouri': '142', 'Murray State': '93',
+  // N
+  'Navy': '2439', 'Nebraska': '158', 'Nevada': '2439',
+  'New Mexico': '167', 'NC State': '152', 'North Carolina': '153',
+  'Northwestern': '77', 'Notre Dame': '87',
+  // O
+  'Ohio': '195', 'Ohio State': '194', 'Oklahoma': '201', 'Oklahoma State': '197',
+  'Ole Miss': '145', 'Oregon': '2483', 'Oregon State': '204',
+  // P
+  'Penn State': '213', 'Pittsburgh': '221', 'Providence': '228', 'Purdue': '2509',
+  // R
+  'Rhode Island': '227', 'Richmond': '257', 'Rutgers': '164',
+  // S
+  'San Diego State': '21', 'Seton Hall': '2599', 'SMU': '2567', 'Stanford': '24',
+  'St. John\'s': '2640', 'Syracuse': '183',
+  // T
+  'TCU': '2628', 'Temple': '218', 'Tennessee': '2633', 'Texas': '251',
+  'Texas A&M': '245', 'Texas Tech': '2641',
+  // U
+  'UCLA': '26', 'UNLV': '2439', 'Utah': '254', 'Utah State': '328',
+  // V
+  'Vanderbilt': '238', 'VCU': '2670', 'Villanova': '222',
+  'Virginia': '258', 'Virginia Tech': '259',
+  // W
+  'Wake Forest': '154', 'Washington': '264', 'West Virginia': '277',
+  'Wisconsin': '275', 'Wofford': '2747',
+  // X/Y
+  'Xavier': '2752', 'Yale': '43',
 };
 
 // Build clean deduplicated list with proper IDs
@@ -1506,7 +1558,7 @@ function buildConferenceCategories() {
     .map(([id, label]) => ({ id, label }));
 }
 
-// Live Top 25 fetched from ESPN rankings API
+// Live Top 25 fetched from ESPN rankings API — same source as the rank badges on cards
 let cachedTop25Ids = null;
 
 async function fetchTop25Ids() {
@@ -1514,12 +1566,23 @@ async function fetchTop25Ids() {
   try {
     const r = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings');
     const data = await r.json();
-    // Find AP poll
-    const ap = data.rankings?.find(r => r.name?.toLowerCase().includes('associated press') || r.shortName?.toLowerCase().includes('ap'));
-    if (!ap) return null;
-    cachedTop25Ids = ap.ranks.map(rank => String(rank.team?.id)).filter(Boolean);
+    // ESPN returns array of polls; find AP poll (usually first, type.id = 1)
+    const polls = data.rankings || [];
+    const ap = polls.find(p =>
+      p.type?.id === 1 ||
+      (p.name || '').toLowerCase().includes('associated press') ||
+      (p.shortName || '').toLowerCase() === 'ap'
+    ) || polls[0];
+    if (!ap || !ap.ranks) return null;
+    // ranks[].team.id are the ESPN team IDs in ranked order
+    cachedTop25Ids = ap.ranks.slice(0, 25).map(rank =>
+      String(rank.team?.id || rank.id || '')
+    ).filter(Boolean);
     return cachedTop25Ids;
-  } catch { return null; }
+  } catch (e) {
+    console.warn('Top 25 fetch failed:', e);
+    return null;
+  }
 }
 
 async function getCategoryTeams(catId) {
