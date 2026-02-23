@@ -741,6 +741,58 @@
       width: 100%;
       max-width: 1080px;
     }
+    /* Category pills */
+    .category-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .cat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .cat-pill:hover { background: var(--surface2); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.15); }
+    .cat-pill.active {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.28);
+      color: #fff;
+    }
+    .cat-clear {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.3rem 0.65rem;
+      border-radius: 20px;
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.2);
+      color: rgba(248,113,113,0.7);
+      font-size: 0.68rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .cat-clear:hover { background: rgba(248,113,113,0.18); color: var(--no); }
+    .cat-active-label {
+      font-size: 0.67rem;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.4rem;
+      display: none;
+    }
+    .cat-active-label.visible { display: block; }
+
   </style>
 </head>
 <body>
@@ -763,7 +815,7 @@
 <div class="selector-wrapper">
   <div class="selector-header">
     <span class="selector-title">Your Teams</span>
-    <span class="selector-count" id="sel-count">0 / 5 selected · drag chips to reorder</span>
+    <span class="selector-count" id="sel-count">0 / 6 selected · drag chips to reorder</span>
   </div>
 
   <!-- Selected chips -->
@@ -771,6 +823,10 @@
     <div class="selected-label">Selected (drag to reorder)</div>
     <div class="selected-chips" id="selected-chips"></div>
   </div>
+
+  <!-- Category pills -->
+  <div class="category-row" id="category-row"></div>
+  <div class="cat-active-label" id="cat-active-label"></div>
 
   <!-- Search + browser -->
   <div class="selector-search-wrap">
@@ -830,13 +886,13 @@ const ALL_TEAMS = [
   { id: '2132',display: 'Coppin State',      short: 'Coppin St',   emoji: '🦅',  conf: 'MEAC',  confId: '55' },
   { id: '45',  display: 'Cornell',           short: 'Cornell',     emoji: '🐻',  conf: 'Ivy',   confId: '22' },
   { id: '46',  display: 'Creighton',         short: 'Creighton',   emoji: '🔵',  conf: 'BE',    confId: '22' },
-  { id: '150', display: 'Duke',              short: 'Duke',        emoji: '🤮',  conf: 'ACC',   confId: '2', vibe: 'hate' },
+  { id: '150', display: 'Dook',              short: 'Dook',        emoji: '🤮',  conf: 'ACC',   confId: '2', vibe: 'hate', aliases: ['duke', 'd00k', 'dook'] },
   { id: '57',  display: 'Dayton',            short: 'Dayton',      emoji: '🔴',  conf: 'A10',   confId: '3'  },
   { id: '2184',display: 'Delaware',          short: 'Delaware',    emoji: '💙',  conf: 'CAA',   confId: '47' },
   { id: '2185',display: 'Denver',            short: 'Denver',      emoji: '⛷️',  conf: 'Sum',   confId: '23' },
   { id: '2199',display: 'Drake',             short: 'Drake',       emoji: '🐶',  conf: 'MVC',   confId: '24' },
   { id: '2211',display: 'Drexel',            short: 'Drexel',      emoji: '🐉',  conf: 'CAA',   confId: '47' },
-  { id: '218', display: 'Duke',              short: 'Duke',        emoji: '🤮',  conf: 'ACC',   confId: '2', vibe: 'hate' },
+
   { id: '2210',display: 'Duquesne',          short: 'Duquesne',    emoji: '🦅',  conf: 'A10',   confId: '3'  },
   { id: '2212',display: 'East Carolina',     short: 'ECU',         emoji: '🏴‍☠️',  conf: 'AAC',   confId: '151'},
   { id: '2213',display: 'East Tennessee State',short: 'ETSU',      emoji: '🦬',  conf: 'SoCon', confId: '29' },
@@ -1007,7 +1063,7 @@ const PROPER_IDS = {
   'Alabama': '5', 'Arizona': '12', 'Arizona State': '13', 'Arkansas': '25',
   'Auburn': '2', 'Baylor': '68', 'BYU': '252', 'Cincinnati': '120',
   'Clemson': '324', 'Colorado': '138', 'Colorado State': '36', 'Connecticut': '41',
-  'Creighton': '46', 'Dayton': '57', 'Duke': '150', 'Florida': '57',
+  'Creighton': '46', 'Dayton': '57', 'Dook': '150', 'Florida': '57',
   'Florida State': '52', 'Georgetown': '43', 'Georgia': '61',
   'Georgia Tech': '59', 'Gonzaga': '2309', 'Houston': '248', 'Illinois': '356',
   'Indiana': '360', 'Iowa': '2294', 'Iowa State': '66', 'Kansas': '2305',
@@ -1043,6 +1099,7 @@ const LOVE_THEMES = [
   { bg: 'linear-gradient(145deg, #6b1a1a 0%, #a02323 55%, #c83434 100%)', shadow: 'rgba(160,35,35,0.4)' },
   { bg: 'linear-gradient(145deg, #4a1a6b 0%, #6c23a0 55%, #8a34c8 100%)', shadow: 'rgba(108,35,160,0.4)' },
   { bg: 'linear-gradient(145deg, #1a4a5c 0%, #237a8e 55%, #2e9eb8 100%)', shadow: 'rgba(35,122,142,0.4)' },
+  { bg: 'linear-gradient(145deg, #5c3d1a 0%, #8e6123 55%, #b87c2e 100%)', shadow: 'rgba(142,97,35,0.4)' },
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -1423,6 +1480,40 @@ function manualRefresh() {
   loadAll().finally(() => { btn.classList.remove('spinning'); btn.disabled = false; });
 }
 
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { id: 'top25',  label: '🏆 Top 25',  emoji: '🏆' },
+  { id: 'ACC',    label: 'ACC',        emoji: '🔵' },
+  { id: 'B10',    label: 'Big Ten',    emoji: '🅱️' },
+  { id: 'B12',    label: 'Big 12',     emoji: '🔴' },
+  { id: 'SEC',    label: 'SEC',        emoji: '🏈' },
+  { id: 'BE',     label: 'Big East',   emoji: '🗽' },
+  { id: 'WCC',    label: 'WCC',        emoji: '🌊' },
+  { id: 'A10',    label: 'Atlantic 10',emoji: '🌀' },
+  { id: 'MW',     label: 'Mountain West', emoji: '⛰️' },
+  { id: 'MVC',    label: 'Missouri Valley', emoji: '🌾' },
+];
+
+// Top 25 AP poll teams (approximate — will be supplemented by live rankings if available)
+const TOP25_TEAMS = [
+  'Duke','North Carolina','Kansas','Kentucky','Houston','Alabama',
+  'Gonzaga','Marquette','Connecticut','Purdue','Tennessee','Auburn',
+  'Arizona','Baylor','Texas','Wisconsin','Missouri','Michigan State',
+  'Indiana','Iowa State','Creighton','St. John\'s','Florida','Ole Miss','Clemson'
+];
+
+function getCategoryTeams(catId) {
+  if (catId === 'top25') {
+    return TEAM_LIST.filter(t =>
+      TOP25_TEAMS.some(n => n.toLowerCase() === t.display.toLowerCase() ||
+        (t.aliases && t.aliases.some(a => a === n.toLowerCase())))
+    );
+  }
+  return TEAM_LIST.filter(t => t.conf === catId);
+}
+
+let activeCategory = null;
+
 // ─── SELECTOR ─────────────────────────────────────────────────────────────────
 let searchQuery = '';
 let dragSrcIdx  = null;
@@ -1432,7 +1523,7 @@ function isSelected(team) { return selectedTeams.some(t => t.display === team.di
 function toggleTeam(team) {
   if (isSelected(team)) {
     selectedTeams = selectedTeams.filter(t => t.display !== team.display);
-  } else if (selectedTeams.length < 5) {
+  } else if (selectedTeams.length < 6) {
     selectedTeams = [...selectedTeams, team];
   }
   saveSaved(selectedTeams);
@@ -1470,10 +1561,14 @@ function renderBrowser() {
   const container = document.getElementById('team-browser');
   const q = searchQuery.toLowerCase().trim();
   const filtered = q
-    ? TEAM_LIST.filter(t => t.display.toLowerCase().includes(q) || t.conf.toLowerCase().includes(q))
-    : TEAM_LIST;
+    ? TEAM_LIST.filter(t =>
+        t.display.toLowerCase().includes(q) ||
+        t.conf.toLowerCase().includes(q) ||
+        (t.aliases && t.aliases.some(a => a.includes(q)))
+      )
+    : activeCategory ? getCategoryTeams(activeCategory) : TEAM_LIST;
 
-  const maxReached = selectedTeams.length >= 5;
+  const maxReached = selectedTeams.length >= 6;
 
   if (!filtered.length) {
     container.innerHTML = '<div class="no-results">No teams found</div>';
@@ -1496,17 +1591,51 @@ function renderBrowser() {
   }).join('');
 }
 
+function renderCategories() {
+  const row = document.getElementById('category-row');
+  const label = document.getElementById('cat-active-label');
+
+  row.innerHTML = CATEGORIES.map(c => {
+    const isActive = activeCategory === c.id;
+    return `<span class="cat-pill ${isActive ? 'active' : ''}" onclick="toggleCategory('${c.id}')">${c.label}</span>`;
+  }).join('') + (activeCategory ? `<span class="cat-clear" onclick="clearCategory()">✕ Clear filter</span>` : '');
+
+  if (activeCategory) {
+    const cat = CATEGORIES.find(c => c.id === activeCategory);
+    const count = getCategoryTeams(activeCategory).length;
+    label.textContent = `Showing ${count} teams · ${cat.label}`;
+    label.classList.add('visible');
+  } else {
+    label.classList.remove('visible');
+  }
+}
+
+function toggleCategory(id) {
+  activeCategory = activeCategory === id ? null : id;
+  searchQuery = '';
+  document.getElementById('team-search').value = '';
+  renderSelector();
+}
+
+function clearCategory() {
+  activeCategory = null;
+  renderSelector();
+}
+
 function renderSelector() {
   renderChips();
+  renderCategories();
   renderBrowser();
   document.getElementById('sel-count').textContent =
-    `${selectedTeams.length} / 5 selected · drag chips to reorder`;
+    `${selectedTeams.length} / 6 selected · drag chips to reorder`;
 }
 
 // Search
 document.getElementById('team-search').addEventListener('input', e => {
   searchQuery = e.target.value;
+  if (searchQuery) activeCategory = null;
   renderBrowser();
+  renderCategories();
 });
 
 // Drag to reorder
