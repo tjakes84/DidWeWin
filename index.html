@@ -844,7 +844,7 @@
 // vibe: 'love' (default) | 'hate' (enables the ugly/fun styling)
 const ALL_TEAMS = [
   { id: '2',   display: 'Air Force',          short: 'Air Force',   emoji: '✈️',  conf: 'MW',    confId: '18' },
-  { id: '2510',display: 'Akron',              short: 'Akron',       emoji: '🦕',  conf: 'MAC',   confId: '14' },
+  { id: '2006',display: 'Akron',              short: 'Akron',       emoji: '🦘',  conf: 'MAC',   confId: '14' },
   { id: '5',   display: 'Alabama',            short: 'Alabama',     emoji: '🐘',  conf: 'SEC',   confId: '8'  },
   { id: '6',   display: 'Albany',             short: 'Albany',      emoji: '🐺',  conf: 'AE',    confId: '173'},
   { id: '7',   display: 'Alcorn State',       short: 'Alcorn St',   emoji: '🐍',  conf: 'SWAC',  confId: '79' },
@@ -1481,33 +1481,52 @@ function manualRefresh() {
 }
 
 // ─── CATEGORIES ───────────────────────────────────────────────────────────────
-const CATEGORIES = [
-  { id: 'top25',  label: '🏆 Top 25',  emoji: '🏆' },
-  { id: 'ACC',    label: 'ACC',        emoji: '🔵' },
-  { id: 'B10',    label: 'Big Ten',    emoji: '🅱️' },
-  { id: 'B12',    label: 'Big 12',     emoji: '🔴' },
-  { id: 'SEC',    label: 'SEC',        emoji: '🏈' },
-  { id: 'BE',     label: 'Big East',   emoji: '🗽' },
-  { id: 'WCC',    label: 'WCC',        emoji: '🌊' },
-  { id: 'A10',    label: 'Atlantic 10',emoji: '🌀' },
-  { id: 'MW',     label: 'Mountain West', emoji: '⛰️' },
-  { id: 'MVC',    label: 'Missouri Valley', emoji: '🌾' },
-];
+// Conference display names (pretty labels for the conf codes in TEAM_LIST)
+const CONF_LABELS = {
+  'ACC': 'ACC', 'B10': 'Big Ten', 'B12': 'Big 12', 'SEC': 'SEC',
+  'BE':  'Big East', 'WCC': 'WCC', 'A10': 'Atlantic 10', 'MW': 'Mountain West',
+  'MVC': 'Missouri Valley', 'MAC': 'MAC', 'AAC': 'American', 'SBC': 'Sun Belt',
+  'MWC': 'Mountain West', 'Pat': 'Patriot', 'ASUN': 'ASUN', 'Ivy': 'Ivy League',
+  'SoCon': 'Southern', 'CAA': 'CAA', 'OVC': 'Ohio Valley', 'HL': 'Horizon',
+  'MAAC': 'MAAC', 'BSky': 'Big Sky', 'BW': 'Big West', 'SWAC': 'SWAC',
+  'MEAC': 'MEAC', 'WAC': 'WAC', 'Sum': 'Summit', 'AE': 'America East',
+  'NEC': 'NEC', 'PAC': 'Pac-12', 'MWC': 'Mountain West',
+};
 
-// Top 25 AP poll teams (approximate — will be supplemented by live rankings if available)
-const TOP25_TEAMS = [
-  'Duke','North Carolina','Kansas','Kentucky','Houston','Alabama',
-  'Gonzaga','Marquette','Connecticut','Purdue','Tennessee','Auburn',
-  'Arizona','Baylor','Texas','Wisconsin','Missouri','Michigan State',
-  'Indiana','Iowa State','Creighton','St. John\'s','Florida','Ole Miss','Clemson'
-];
+// Build conference list dynamically from actual TEAM_LIST
+function buildConferenceCategories() {
+  const confSet = new Map();
+  TEAM_LIST.forEach(t => {
+    if (!confSet.has(t.conf)) {
+      confSet.set(t.conf, CONF_LABELS[t.conf] || t.conf);
+    }
+  });
+  return Array.from(confSet.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, label]) => ({ id, label }));
+}
 
-function getCategoryTeams(catId) {
+// Live Top 25 fetched from ESPN rankings API
+let cachedTop25Ids = null;
+
+async function fetchTop25Ids() {
+  if (cachedTop25Ids) return cachedTop25Ids;
+  try {
+    const r = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings');
+    const data = await r.json();
+    // Find AP poll
+    const ap = data.rankings?.find(r => r.name?.toLowerCase().includes('associated press') || r.shortName?.toLowerCase().includes('ap'));
+    if (!ap) return null;
+    cachedTop25Ids = ap.ranks.map(rank => String(rank.team?.id)).filter(Boolean);
+    return cachedTop25Ids;
+  } catch { return null; }
+}
+
+async function getCategoryTeams(catId) {
   if (catId === 'top25') {
-    return TEAM_LIST.filter(t =>
-      TOP25_TEAMS.some(n => n.toLowerCase() === t.display.toLowerCase() ||
-        (t.aliases && t.aliases.some(a => a === n.toLowerCase())))
-    );
+    const ids = await fetchTop25Ids();
+    if (!ids) return TEAM_LIST.slice(0, 25); // fallback
+    return TEAM_LIST.filter(t => ids.includes(String(t.id)));
   }
   return TEAM_LIST.filter(t => t.conf === catId);
 }
@@ -1557,16 +1576,23 @@ function renderChips() {
     </div>`).join('');
 }
 
-function renderBrowser() {
+async function renderBrowser() {
   const container = document.getElementById('team-browser');
   const q = searchQuery.toLowerCase().trim();
-  const filtered = q
-    ? TEAM_LIST.filter(t =>
-        t.display.toLowerCase().includes(q) ||
-        t.conf.toLowerCase().includes(q) ||
-        (t.aliases && t.aliases.some(a => a.includes(q)))
-      )
-    : activeCategory ? getCategoryTeams(activeCategory) : TEAM_LIST;
+
+  let filtered;
+  if (q) {
+    filtered = TEAM_LIST.filter(t =>
+      t.display.toLowerCase().includes(q) ||
+      t.conf.toLowerCase().includes(q) ||
+      (t.aliases && t.aliases.some(a => a.includes(q)))
+    );
+  } else if (activeCategory) {
+    container.innerHTML = '<div class="no-results" style="color:rgba(255,255,255,0.15)">Loading…</div>';
+    filtered = await getCategoryTeams(activeCategory);
+  } else {
+    filtered = TEAM_LIST;
+  }
 
   const maxReached = selectedTeams.length >= 6;
 
@@ -1594,47 +1620,50 @@ function renderBrowser() {
 function renderCategories() {
   const row = document.getElementById('category-row');
   const label = document.getElementById('cat-active-label');
+  const confCats = buildConferenceCategories();
+  const allCats = [{ id: 'top25', label: '🏆 Top 25' }, ...confCats];
 
-  row.innerHTML = CATEGORIES.map(c => {
+  row.innerHTML = allCats.map(c => {
     const isActive = activeCategory === c.id;
-    return `<span class="cat-pill ${isActive ? 'active' : ''}" onclick="toggleCategory('${c.id}')">${c.label}</span>`;
-  }).join('') + (activeCategory ? `<span class="cat-clear" onclick="clearCategory()">✕ Clear filter</span>` : '');
+    return `<span class="cat-pill ${isActive ? 'active' : ''}" onclick="selectCategory('${c.id}')">${c.label}</span>`;
+  }).join('') + (activeCategory ? `<span class="cat-clear" onclick="clearCategory()">✕ Clear</span>` : '');
 
   if (activeCategory) {
-    const cat = CATEGORIES.find(c => c.id === activeCategory);
-    const count = getCategoryTeams(activeCategory).length;
-    label.textContent = `Showing ${count} teams · ${cat.label}`;
+    const cat = allCats.find(c => c.id === activeCategory);
+    label.textContent = `Filtering by: ${cat?.label || activeCategory}`;
     label.classList.add('visible');
   } else {
     label.classList.remove('visible');
   }
 }
 
-function toggleCategory(id) {
+async function selectCategory(id) {
   activeCategory = activeCategory === id ? null : id;
   searchQuery = '';
   document.getElementById('team-search').value = '';
-  renderSelector();
+  renderCategories();
+  await renderBrowser();
 }
 
 function clearCategory() {
   activeCategory = null;
-  renderSelector();
-}
-
-function renderSelector() {
-  renderChips();
   renderCategories();
   renderBrowser();
+}
+
+async function renderSelector() {
+  renderChips();
+  renderCategories();
+  await renderBrowser();
   document.getElementById('sel-count').textContent =
     `${selectedTeams.length} / 6 selected · drag chips to reorder`;
 }
 
 // Search
-document.getElementById('team-search').addEventListener('input', e => {
+document.getElementById('team-search').addEventListener('input', async e => {
   searchQuery = e.target.value;
   if (searchQuery) activeCategory = null;
-  renderBrowser();
+  await renderBrowser();
   renderCategories();
 });
 
@@ -1668,6 +1697,7 @@ function dragEnd(e) {
 // Boot
 renderSelector();
 loadAll();
+fetchTop25Ids(); // pre-warm the cache
 setInterval(loadAll, 60_000);
 </script>
 </body>
