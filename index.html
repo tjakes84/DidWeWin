@@ -1558,29 +1558,32 @@ function buildConferenceCategories() {
     .map(([id, label]) => ({ id, label }));
 }
 
-// Live Top 25 fetched from ESPN rankings API — same source as the rank badges on cards
+// Live Top 25 from ESPN AP Poll — confirmed response shape:
+// data.rankings[0].ranks[].team.id (in rank order, rank 1 first)
 let cachedTop25Ids = null;
 
 async function fetchTop25Ids() {
   if (cachedTop25Ids) return cachedTop25Ids;
   try {
-    const r = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings');
+    const r = await fetch(
+      'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings',
+      { cache: 'no-store' }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-    // ESPN returns array of polls; find AP poll (usually first, type.id = 1)
-    const polls = data.rankings || [];
-    const ap = polls.find(p =>
-      p.type?.id === 1 ||
-      (p.name || '').toLowerCase().includes('associated press') ||
-      (p.shortName || '').toLowerCase() === 'ap'
-    ) || polls[0];
-    if (!ap || !ap.ranks) return null;
-    // ranks[].team.id are the ESPN team IDs in ranked order
-    cachedTop25Ids = ap.ranks.slice(0, 25).map(rank =>
-      String(rank.team?.id || rank.id || '')
-    ).filter(Boolean);
+    // data.rankings[] — first entry is AP Top 25
+    // each rank has .current (rank #) and .team.id
+    const ap = (data.rankings || []).find(p =>
+      p.type === 'ap' || (p.name || '').includes('AP')
+    ) || data.rankings?.[0];
+    if (!ap?.ranks?.length) throw new Error('No ranks found');
+    cachedTop25Ids = ap.ranks
+      .sort((a, b) => a.current - b.current)
+      .map(rk => String(rk.team?.id))
+      .filter(Boolean);
     return cachedTop25Ids;
-  } catch (e) {
-    console.warn('Top 25 fetch failed:', e);
+  } catch(e) {
+    console.warn('Rankings fetch failed:', e);
     return null;
   }
 }
@@ -1588,8 +1591,14 @@ async function fetchTop25Ids() {
 async function getCategoryTeams(catId) {
   if (catId === 'top25') {
     const ids = await fetchTop25Ids();
-    if (!ids) return TEAM_LIST.slice(0, 25); // fallback
-    return TEAM_LIST.filter(t => ids.includes(String(t.id)));
+    if (!ids || ids.length === 0) return null; // signal failure to caller
+    // Return in rank order, only teams we have in TEAM_LIST
+    const result = [];
+    for (const id of ids) {
+      const t = TEAM_LIST.find(t => String(t.id) === id);
+      if (t) result.push(t);
+    }
+    return result;
   }
   return TEAM_LIST.filter(t => t.conf === catId);
 }
@@ -1653,6 +1662,10 @@ async function renderBrowser() {
   } else if (activeCategory) {
     container.innerHTML = '<div class="no-results" style="color:rgba(255,255,255,0.15)">Loading…</div>';
     filtered = await getCategoryTeams(activeCategory);
+    if (filtered === null) {
+      container.innerHTML = '<div class="no-results">Couldn\'t load rankings — try again in a moment</div>';
+      return;
+    }
   } else {
     filtered = TEAM_LIST;
   }
