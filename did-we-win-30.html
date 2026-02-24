@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Did We Win?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --yes:  #4ade80;
+      --no:   #f87171;
+      --live: #fbbf24;
+      --bg:   #111318;
+      --surface: #1a1d24;
+      --surface2: #22262f;
+      --border: rgba(255,255,255,0.07);
+      --text-dim: rgba(255,255,255,0.35);
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 2rem;
+    }
+
+    /* ── HEADER ── */
+    header { text-align: center; margin-bottom: 2.4rem; }
+
+    h1 {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(2.8rem, 8vw, 5.5rem);
+      color: #fff;
+      letter-spacing: 0.03em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    h1 em { color: var(--live); font-style: normal; }
+
+    .subtitle {
+      margin-top: 0.55rem;
+      font-size: 0.7rem;
+      color: #444;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .refresh-info {
+      margin-top: 0.3rem;
+      font-size: 0.67rem;
+      color: #353535;
+      letter-spacing: 0.07em;
+    }
+    #last-updated { color: #4a4a4a; }
+
+    #refresh-btn {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #4a4a4a;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.67rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+      transition: border-color 0.2s, color 0.2s;
+      vertical-align: middle;
+    }
+    #refresh-btn:hover { border-color: #555; color: #888; }
+    #refresh-btn.spinning { animation: spin 0.6s linear; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ── GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.4rem;
+      width: 100%;
+      max-width: 1080px;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-dim);
+    }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+    .empty-state p { font-size: 0.9rem; letter-spacing: 0.08em; }
+
+    /* ── CARD SHELL ── */
+    .card {
+      border-radius: 18px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      cursor: pointer;
+      min-height: 360px;
+      transition: box-shadow 0.25s, transform 0.25s;
+    }
+    .card:hover { transform: translateY(-2px); }
+
+    .card-front,
+    .card-back {
+      position: absolute;
+      inset: 0;
+      padding: 1.5rem 1.6rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: opacity 0.28s ease, transform 0.28s ease;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .card-back {
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+    }
+
+    @media (hover: hover) {
+      .card:not(.flipped):hover .card-front {
+        opacity: 0;
+        transform: translateY(-10px);
+        pointer-events: none;
+      }
+      .card:not(.flipped):hover .card-back {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: all;
+      }
+    }
+
+    .card.flipped .card-front {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+    .card.flipped .card-back {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    /* subtle texture */
+    .card-front::before, .card-back::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -55deg,
+        rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px,
+        transparent 1px, transparent 22px
+      );
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    /* shimmer */
+    .card.loading .card-front::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: inherit;
+    }
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position:  200% 0; }
+    }
+
+    /* ─── TEAM CARD THEMES ─── */
+    /* Love teams — refined gradients, softer glows */
+    .card.team-love .card-front,
+    .card.team-love .card-back {
+      /* Applied dynamically via JS */
+    }
+
+    /* Hate team — desaturated, ugly on purpose */
+    .card.hate-card .card-front,
+    .card.hate-card .card-back {
+      background: linear-gradient(160deg, #1c1800 0%, #2a2100 45%, #141100 100%);
+      filter: saturate(0.4) brightness(0.8);
+    }
+    .card.hate-card {
+      box-shadow: 0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(80,60,0,0.15);
+      transform: rotate(-0.5deg);
+    }
+    .card.hate-card:hover { transform: rotate(-0.5deg) translateY(-2px); }
+    .card.hate-card .team-name {
+      color: #6a6040;
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,80,80,0.4);
+    }
+    .card.hate-card .card-front::after {
+      content: '🤮 🤢 🤮';
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.6rem;
+      font-size: 2rem;
+      opacity: 0.18;
+      pointer-events: none;
+    }
+    .card.hate-card .answer.yes { color: #7a9966; text-shadow: none; }
+    .card.hate-card .answer.yes::after { content: ' 🤢 ugh'; font-size: 0.35em; color: rgba(255,255,255,0.25); vertical-align: middle; }
+    .card.hate-card .answer.no::after  { content: ' 😂🎉'; font-size: 0.5em; vertical-align: middle; }
+    .card.hate-card .hint { color: rgba(255,255,255,0.08); }
+
+    /* ── TEAM HEADER ── */
+    .team-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .team-emoji {
+      font-size: 1.3rem;
+      line-height: 1;
+      display: block;
+      margin-bottom: 0.22rem;
+    }
+
+    .team-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: nowrap;
+      line-height: 1;
+    }
+    .team-tag-row {
+      display: flex;
+      align-items: center;
+      margin-top: 0.28rem;
+    }
+
+    .team-name {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(1rem, 3.2vw, 1.4rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1;
+      white-space: nowrap;
+      color: #fff;
+    }
+
+    .team-sub {
+      font-size: 0.64rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      margin-top: 0.25rem;
+    }
+
+    .love-tag, .hate-tag {
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.16rem 0.5rem;
+      border-radius: 20px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .love-tag { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.6); }
+    .hate-tag { background: rgba(255,50,50,0.12); color: rgba(255,120,120,0.6); }
+
+    /* ── FRONT GAME DETAILS ── */
+    .front-game {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .front-game-label {
+      font-size: 0.58rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      font-weight: 500;
+    }
+    .front-game-line {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.4;
+    }
+    .front-game-line strong { color: rgba(255,255,255,0.9); }
+
+    .front-badge {
+      display: inline-block;
+      font-family: 'Anton', sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.3rem;
+      vertical-align: middle;
+      position: relative; top: -1px;
+    }
+    .front-badge.w    { background: rgba(74,222,128,0.15); color: var(--yes); }
+    .front-badge.l    { background: rgba(248,113,113,0.15); color: var(--no); }
+    .front-badge.live { background: rgba(251,191,36,0.15); color: var(--live); }
+    .front-badge.up   { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.38); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; }
+
+    .answer {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3.2rem, 9vw, 5rem);
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .answer.yes  { color: var(--yes);  text-shadow: 0 0 30px rgba(74,222,128,0.35); }
+    .answer.no   { color: var(--no);   text-shadow: 0 0 30px rgba(248,113,113,0.35); }
+    .answer.live { color: var(--live); text-shadow: 0 0 30px rgba(251,191,36,0.4); animation: blink 1.2s ease-in-out infinite; }
+    .answer.tbd  { color: #333; font-size: clamp(2rem, 5vw, 3rem); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    .live-details {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      color: rgba(251,191,36,0.75);
+      margin-top: -0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .live-opponent {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.05em;
+      margin-top: -0.25rem;
+    }
+    .live-opponent strong { color: rgba(255,255,255,0.8); }
+
+    .winning-tag {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 0.09rem 0.38rem;
+      border-radius: 4px;
+    }
+    .winning-tag         { background: rgba(74,222,128,0.14); color: var(--yes); }
+    .winning-tag.losing  { background: rgba(248,113,113,0.14); color: var(--no); }
+    .winning-tag.tied    { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); }
+
+    /* hint */
+    .hint {
+      font-size: 0.6rem;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: auto;
+      text-align: right;
+    }
+    .hint-hover { display: inline; }
+    .hint-tap   { display: none; }
+    @media (hover: none) {
+      .hint-hover { display: none; }
+      .hint-tap   { display: inline; }
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: -0.15rem;
+    }
+
+    .rank-badge {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      background: rgba(251,191,36,0.16);
+      color: var(--live);
+      padding: 0.15rem 0.5rem;
+      border-radius: 5px;
+      border: 1px solid rgba(251,191,36,0.22);
+    }
+
+    .rec-item {
+      font-size: 0.67rem;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.07);
+      padding: 0.15rem 0.45rem;
+      border-radius: 5px;
+    }
+    .rec-item.conf { color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.04); }
+
+    .opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.7rem;
+      color: rgba(251,191,36,0.7);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── BACK ── */
+    .back-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.1rem;
+    }
+
+    .back-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .back-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+    }
+
+    .back-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      background: rgba(251,191,36,0.16);
+      color: var(--live);
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+      border: 1px solid rgba(251,191,36,0.22);
+    }
+
+    .back-rec {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.06);
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+    }
+    .back-rec.conf { color: rgba(255,255,255,0.28); }
+
+    .schedule-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.42rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .sched-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.18);
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.85);
+    }
+    .sched-row.current {
+      background: rgba(255,255,255,0.09);
+      outline: 1px solid rgba(255,255,255,0.13);
+    }
+
+    .sched-date {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.3);
+      min-width: 52px;
+      letter-spacing: 0.04em;
+    }
+
+    .sched-opp {
+      flex: 1;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sched-result {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      padding: 0.08rem 0.38rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .sched-result.w    { background: rgba(74,222,128,0.14); color: var(--yes); }
+    .sched-result.l    { background: rgba(248,113,113,0.14); color: var(--no); }
+    .sched-result.live { background: rgba(251,191,36,0.14); color: var(--live); animation: blink 1.2s ease-in-out infinite; }
+    .sched-result.upcoming { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.35); font-family: 'DM Sans', sans-serif; font-size: 0.67rem; }
+
+    .sched-opp-rank {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.68rem;
+      color: rgba(251,191,36,0.65);
+    }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.2rem 0; }
+
+    .schedule-list::-webkit-scrollbar { width: 3px; }
+    .schedule-list::-webkit-scrollbar-track { background: transparent; }
+    .schedule-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.62rem;
+      color: #252525;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════
+       TEAM SELECTOR PANEL
+    ═══════════════════════════════════════════════ */
+    .selector-wrapper {
+      width: 100%;
+      max-width: 1080px;
+      margin-top: 2.5rem;
+    }
+
+    .selector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .selector-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .selector-count {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.1em;
+    }
+
+    .clear-all-btn {
+      font-size: 0.65rem;
+      font-family: inherit;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.2rem 0.55rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .clear-all-btn:hover {
+      color: rgba(255,80,80,0.9);
+      background: rgba(255,60,60,0.12);
+      border-color: rgba(255,60,60,0.25);
+    }
+
+    /* Search */
+    .selector-search-wrap {
+      position: relative;
+      margin-bottom: 0.75rem;
+    }
+    .selector-search {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.75);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 0.6rem 1rem 0.6rem 2.4rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .selector-search::placeholder { color: rgba(255,255,255,0.2); }
+    .selector-search:focus { border-color: rgba(255,255,255,0.18); }
+    .search-icon {
+      position: absolute;
+      left: 0.8rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.2);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+
+    /* Team list */
+    .team-browser {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 0.5rem;
+      max-height: 260px;
+      overflow-y: auto;
+      padding: 0.1rem;
+    }
+    .team-browser::-webkit-scrollbar { width: 4px; }
+    .team-browser::-webkit-scrollbar-track { background: transparent; }
+    .team-browser::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .team-option {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 9px;
+      background: var(--surface);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+      user-select: none;
+    }
+    .team-option:hover { background: var(--surface2); border-color: rgba(255,255,255,0.08); }
+    .team-option.selected {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .team-option.disabled { opacity: 0.28; pointer-events: none; }
+    .team-option.hate-option {
+      background: rgba(40,20,20,0.7);
+      border-color: rgba(255,50,50,0.08);
+    }
+    .team-option.hate-option.selected { border-color: rgba(255,50,50,0.2); }
+
+    .option-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .team-option.selected .option-check {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .option-emoji { font-size: 1rem; flex-shrink: 0; }
+    .option-info { min-width: 0; }
+    .option-name {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .option-conf {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.28);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Celebrity Packs */
+    .celeb-section {
+      margin-bottom: 1rem;
+    }
+    .celeb-row {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .celeb-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.75rem 0.35rem 0.5rem;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.6);
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .celeb-chip:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.9);
+      transform: translateY(-1px);
+    }
+    .celeb-chip:active { transform: translateY(0); }
+    .celeb-avatar { font-size: 1.1rem; line-height: 1; }
+    .celeb-name { font-weight: 500; letter-spacing: 0.02em; }
+
+    /* Selected team chips (drag to reorder) */
+    .selected-section {
+      margin-bottom: 1rem;
+    }
+    .selected-label {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .selected-chips {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      min-height: 44px;
+      align-items: flex-start;
+    }
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.38rem 0.6rem 0.38rem 0.5rem;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: grab;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.75);
+    }
+    .chip:hover { background: #2c3040; border-color: rgba(255,255,255,0.18); }
+    .chip.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+    .chip.drag-over {
+      box-shadow: 2px 0 0 0 rgba(255,255,255,0.3);
+    }
+    .chip-emoji { font-size: 0.95rem; }
+    .chip-name { font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
+    .chip-remove {
+      margin-left: 0.1rem;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.3);
+      transition: color 0.15s, background 0.15s;
+    }
+    .chip-remove:hover { color: var(--no); background: rgba(248,113,113,0.12); }
+    .chip-drag-handle {
+      color: rgba(255,255,255,0.18);
+      font-size: 0.7rem;
+      cursor: grab;
+    }
+
+    .no-results {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 2rem 1rem;
+      color: rgba(255,255,255,0.2);
+      font-size: 0.8rem;
+    }
+
+    /* Separator */
+    .panel-sep {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      margin: 2rem 0;
+      width: 100%;
+      max-width: 1080px;
+    }
+    /* Category pills */
+    .category-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .cat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .cat-pill:hover { background: var(--surface2); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.15); }
+    .cat-pill.active {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.28);
+      color: #fff;
+    }
+    .cat-clear {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.3rem 0.65rem;
+      border-radius: 20px;
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.2);
+      color: rgba(248,113,113,0.7);
+      font-size: 0.68rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .cat-clear:hover { background: rgba(248,113,113,0.18); color: var(--no); }
+    .cat-active-label {
+      font-size: 0.67rem;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.4rem;
+      display: none;
+    }
+    .cat-active-label.visible { display: block; }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Did We <em>Win?</em></h1>
+  <p class="subtitle">Men's Basketball · Live Scores</p>
+  <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
+</header>
+
+<div class="grid" id="grid">
+  <div class="empty-state">
+    <div class="empty-icon">🏀</div>
+    <p>Select your favorite teams below to get started</p>
+  </div>
+</div>
+
+<hr class="panel-sep">
+
+<div class="selector-wrapper">
+  <div class="selector-header">
+    <span class="selector-title">Your Teams</span>
+    <span class="selector-count" id="sel-count">0 / 6 selected · drag chips to reorder</span>
+    <button class="clear-all-btn" id="clear-all-btn" onclick="clearAllTeams()" style="display:none">Clear all</button>
+  </div>
+
+  <!-- Selected chips -->
+  <div class="selected-section">
+    <div class="selected-label">Selected (drag to reorder)</div>
+    <div class="selected-chips" id="selected-chips"></div>
+  </div>
+
+  <!-- Celebrity Packs -->
+  <div class="celeb-section">
+    <div class="selected-label">Load a celebrity's picks</div>
+    <div class="celeb-row" id="celeb-row"></div>
+  </div>
+
+  <!-- Category pills -->
+  <div class="category-row" id="category-row"></div>
+  <div class="cat-active-label" id="cat-active-label"></div>
+
+  <!-- Search + browser -->
+  <div class="selector-search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="selector-search" id="team-search" type="text" placeholder="Search teams…" autocomplete="off" />
+  </div>
+  <div class="team-browser" id="team-browser"></div>
+</div>
+
+<footer>Data via ESPN · hover or tap a card to see the full schedule</footer>
+
+<script>
+// ─── TEAM METADATA OVERLAY ────────────────────────────────────────────────────
+// IDs come entirely from ESPN's API at boot — we NEVER hardcode them.
+// This map provides display overrides, emojis, vibes, and search aliases,
+// keyed by ESPN's canonical "location" string (what ESPN uses as the school name).
+//
+// 'Duke' → display:'Dook' means: ESPN tells us the team is "Duke" (id=150),
+// and we override the display name in our UI to "Dook".
+
+const TEAM_META = {
+  // ── ACC ──
+  'Boston College':   { emoji: '🦅' },
+  'California':       { display: 'Cal',          short: 'Cal',        emoji: '🐻' },
+  'Clemson':          { emoji: '🐅' },
+  'Duke':             { display: 'Dook',          short: 'Dook',       emoji: '🤮', vibe: 'hate', aliases: ['duke','d00k','dook'] },
+  'Florida State':    { emoji: '🏹' },
+  'Georgia Tech':     { emoji: '🐝' },
+  'Louisville':       { emoji: '🃏' },
+  'Miami':            { emoji: '🌊' },
+  'North Carolina':   { emoji: '💙' },
+  'NC State':         { emoji: '🐺' },
+  'Notre Dame':       { emoji: '☘️' },
+  'Pittsburgh':       { short: 'Pitt',            emoji: '🐾' },
+  'SMU':              { emoji: '🐴' },
+  'Stanford':         { emoji: '🌲' },
+  'Syracuse':         { emoji: '🍊' },
+  'Virginia':         { emoji: '🟠' },
+  'Virginia Tech':    { emoji: '🦃' },
+  'Wake Forest':      { emoji: '😈' },
+
+  // ── Big Ten ──
+  'Illinois':         { emoji: '🦣' },
+  'Indiana':          { emoji: '⛰️' },
+  'Iowa':             { emoji: '🐻' },
+  'Maryland':         { emoji: '🐢' },
+  'Michigan':         { emoji: '〽️' },
+  'Michigan State':   { emoji: '💚' },
+  'Minnesota':        { emoji: '🐿️' },
+  'Nebraska':         { emoji: '🌽' },
+  'Northwestern':     { emoji: '🐱' },
+  'Ohio State':       { emoji: '🌰' },
+  'Oregon':           { emoji: '🦆' },
+  'Penn State':       { emoji: '🦁' },
+  'Purdue':           { emoji: '🚂' },
+  'Rutgers':          { emoji: '🦕' },
+  'UCLA':             { emoji: '🐻' },
+  'USC':              { emoji: '✌️' },
+  'Washington':       { emoji: '🐕' },
+  'Wisconsin':        { emoji: '🦡' },
+
+  // ── Big 12 ──
+  'Arizona':          { emoji: '🐻' },
+  'Arizona State':    { emoji: '😈' },
+  'Baylor':           { emoji: '🐻' },
+  'BYU':              { emoji: '🦁' },
+  'Cincinnati':       { emoji: '🐻' },
+  'Colorado':         { emoji: '🦬' },
+  'Houston':          { emoji: '🐾' },
+  'Iowa State':       { emoji: '🌪️' },
+  'Kansas':           { emoji: '🐦' },
+  'Kansas State':     { short: 'K-State',         emoji: '🐾' },
+  'Oklahoma State':   { short: 'Okla State',       emoji: '🤠' },
+  'TCU':              { emoji: '🐸' },
+  'Texas':            { emoji: '🤘' },
+  'Texas Tech':       { emoji: '🔴' },
+  'UCF':              { emoji: '⚔️' },
+  'Utah':             { emoji: '🦅' },
+  'West Virginia':    { emoji: '⛰️' },
+
+  // ── SEC ──
+  'Alabama':          { emoji: '🐘' },
+  'Arkansas':         { emoji: '🐗' },
+  'Auburn':           { emoji: '🐯' },
+  'Florida':          { emoji: '🐊' },
+  'Georgia':          { emoji: '🐾' },
+  'Kentucky':         { emoji: '🐱' },
+  'LSU':              { emoji: '🐯' },
+  'Mississippi':      { display: 'Ole Miss',       short: 'Ole Miss',   emoji: '🐻' },
+  'Mississippi State':{ short: 'Miss State',       emoji: '🐶' },
+  'Missouri':         { emoji: '🐯' },
+  'Oklahoma':         { emoji: '🏹' },
+  'South Carolina':   { short: 'South Car',        emoji: '🐓' },
+  'Tennessee':        { emoji: '🍊' },
+  'Texas A&M':        { emoji: '🐶' },
+  'Vanderbilt':       { emoji: '⭐' },
+
+  // ── Big East ──
+  'Butler':           { emoji: '🐶' },
+  'Connecticut':      { display: 'UConn',          short: 'UConn',      emoji: '🐕' },
+  'Creighton':        { emoji: '🔵' },
+  'DePaul':           { emoji: '💙' },
+  'Georgetown':       { emoji: '🐺' },
+  'Marquette':        { emoji: '🦅' },
+  'Providence':       { emoji: '🔥' },
+  'Seton Hall':       { emoji: '🔵' },
+  "St. John's":       { emoji: '🔴' },
+  'Villanova':        { emoji: '🐱' },
+  'Xavier':           { emoji: '🐉' },
+
+  // ── Atlantic 10 ──
+  'Dayton':           { emoji: '🔴' },
+  'Davidson':         { emoji: '🐾' },
+  'Duquesne':         { emoji: '🦅' },
+  'Fordham':          { emoji: '🐏' },
+  'George Mason':     { short: 'G. Mason',         emoji: '🟢' },
+  'George Washington':{ short: 'GW',               emoji: '🍒' },
+  'La Salle':         { emoji: '💙' },
+  'Loyola Chicago':   { short: 'Loyola Chi',       emoji: '⚓' },
+  'Massachusetts':    { display: 'UMass',           short: 'UMass',      emoji: '🔵' },
+  'Rhode Island':     { emoji: '🐏' },
+  'Richmond':         { emoji: '🕷️' },
+  'Saint Louis':      { emoji: '⚜️' },
+  "Saint Joseph's":   { short: "St. Joe's",        emoji: '🦅' },
+  'St. Bonaventure':  { short: 'St Bonav',         emoji: '🟤' },
+  'VCU':              { emoji: '🐏' },
+
+  // ── WCC ──
+  'Gonzaga':          { emoji: '🐶' },
+  'Loyola Marymount': { short: 'LMU',              emoji: '🦁' },
+  'Pacific':          { emoji: '🐯' },
+  'Pepperdine':       { emoji: '🌊' },
+  'Portland':         { emoji: '🌹' },
+  "Saint Mary's":     { short: "St Mary's",        emoji: '⚓' },
+  'San Diego':        { emoji: '⚓' },
+  'San Francisco':    { short: 'USF',              emoji: '🌉' },
+  'Santa Clara':      { emoji: '🌹' },
+
+  // ── Mountain West ──
+  'Air Force':        { emoji: '✈️' },
+  'Boise State':      { emoji: '🔵' },
+  'Colorado State':   { short: 'Colorado St',      emoji: '🐏' },
+  'Fresno State':     { emoji: '🐕' },
+  'Nevada':           { emoji: '⚡' },
+  'New Mexico':       { emoji: '🎈' },
+  'San Diego State':  { short: 'SDSU',             emoji: '🦅' },
+  'UNLV':             { emoji: '🎲' },
+  'Utah State':       { emoji: '🐴' },
+  'Wyoming':          { emoji: '🤠' },
+
+  // ── American Athletic ──
+  'Charlotte':        { emoji: '🐉' },
+  'East Carolina':    { short: 'ECU',              emoji: '🏴‍☠️' },
+  'Florida Atlantic': { short: 'FAU',              emoji: '🦉' },
+  'Louisiana Tech':   { short: 'LA Tech',          emoji: '🔵' },
+  'Memphis':          { emoji: '🎸' },
+  'Middle Tennessee': { short: 'MTSU',             emoji: '🔵' },
+  'North Texas':      { emoji: '🦅' },
+  'Rice':             { emoji: '🦉' },
+  'South Florida':    { short: 'USF',              emoji: '🐂' },
+  'Temple':           { emoji: '🦉' },
+  'Tulane':           { emoji: '🌊' },
+  'Tulsa':            { emoji: '🌪️' },
+  'UAB':              { emoji: '🐉' },
+  'UTEP':             { emoji: '🌵' },
+  'UTSA':             { emoji: '🐦' },
+  'Western Kentucky': { short: 'WKU',              emoji: '🔴' },
+  'Wichita State':    { emoji: '🌾' },
+  'FIU':              { emoji: '🐾' },
+
+  // ── Missouri Valley ──
+  'Bradley':          { emoji: '🐹' },
+  'Drake':            { emoji: '🐶' },
+  'Evansville':       { emoji: '🟣' },
+  'Illinois State':   { short: 'Illinois St',      emoji: '🔴' },
+  'Indiana State':    { emoji: '🌲' },
+  'Missouri State':   { short: 'Missouri St',      emoji: '🐻' },
+  'Murray State':     { emoji: '🏇' },
+  'Northern Iowa':    { emoji: '🐾' },
+  'Southern Illinois':{ short: 'SIU',              emoji: '🐾' },
+  'Valparaiso':       { short: 'Valpo',            emoji: '🏰' },
+  'Belmont':          { emoji: '🔵' },
+
+  // ── Mid-American ──
+  'Akron':            { emoji: '🦘' },
+  'Ball State':       { emoji: '🔴' },
+  'Bowling Green':    { short: 'BGSU',             emoji: '🟠' },
+  'Buffalo':          { emoji: '🦬' },
+  'Central Michigan': { short: 'Central Mich',     emoji: '🔥' },
+  'Eastern Michigan': { short: 'Eastern Mich',     emoji: '🦅' },
+  'Kent State':       { emoji: '🦅' },
+  'Miami (OH)':       { short: 'Miami OH',         emoji: '🔴' },
+  'Northern Illinois':{ short: 'N Illinois',       emoji: '🔴' },
+  'Ohio':             { emoji: '🟢' },
+  'Toledo':           { emoji: '🟡' },
+  'Western Michigan': { short: 'Western Mich',     emoji: '🤙' },
+
+  // ── Sun Belt ──
+  'Appalachian State':{ short: 'App State',        emoji: '⛰️' },
+  'Arkansas State':   { short: 'Ark State',        emoji: '🐺' },
+  'Coastal Carolina': { short: 'Coastal Car',      emoji: '⚓' },
+  'Georgia State':    { emoji: '🔵' },
+  'James Madison':    { short: 'JMU',              emoji: '🟣' },
+  'Louisiana':        { emoji: '⚜️' },
+  'Louisiana Monroe': { short: 'ULM',              emoji: '🔴' },
+  'Marshall':         { emoji: '🔢' },
+  'Old Dominion':     { emoji: '🦁' },
+  'South Alabama':    { emoji: '🦬' },
+  'Texas State':      { emoji: '🐱' },
+  'Troy':             { emoji: '🐴' },
+  'Arkansas-Little Rock':{ short: 'UALR',          emoji: '🔴' },
+  'Southern Miss':    { emoji: '🦅' },
+
+  // ── ASUN ──
+  'Bellarmine':       { emoji: '🔵' },
+  'Eastern Kentucky': { short: 'Eastern KY',       emoji: '🦅' },
+  'Florida Gulf Coast':{ short: 'FGCU',            emoji: '🦅' },
+  'Jacksonville':     { emoji: '🐬' },
+  'Kennesaw State':   { short: 'KSU',              emoji: '🦉' },
+  'Liberty':          { emoji: '🔥' },
+  'Lipscomb':         { emoji: '🦬' },
+  'North Alabama':    { emoji: '🦁' },
+  'North Florida':    { emoji: '🐊' },
+  'Queens':           { emoji: '👑' },
+  'Jacksonville State':{ short: 'Jax State',       emoji: '🐓' },
+
+  // ── CAA ──
+  'Campbell':         { emoji: '🐪' },
+  'Charleston':       { emoji: '⚓' },
+  'Delaware':         { emoji: '💙' },
+  'Drexel':           { emoji: '🐉' },
+  'Elon':             { emoji: '🕊️' },
+  'Hampton':          { emoji: '🐾' },
+  'Hofstra':          { emoji: '🦁' },
+  'Monmouth':         { emoji: '🦅' },
+  'NC A&T':           { emoji: '🐊' },
+  'Northeastern':     { emoji: '🐾' },
+  'Stony Brook':      { emoji: '🐺' },
+  'Towson':           { emoji: '🐯' },
+  'UNC Wilmington':   { short: 'UNCW',             emoji: '🌊' },
+  'William & Mary':   { short: 'W&M',              emoji: '👑' },
+
+  // ── Patriot ──
+  'American':         { emoji: '🦅' },
+  'Army':             { emoji: '🎖️' },
+  'Boston University':{ short: 'BU',               emoji: '🐾' },
+  'Bucknell':         { emoji: '🦬' },
+  'Colgate':          { emoji: '🟥' },
+  'Holy Cross':       { emoji: '✝️' },
+  'Lafayette':        { emoji: '🦁' },
+  'Lehigh':           { emoji: '🟤' },
+  'Loyola Maryland':  { short: 'Loyola MD',        emoji: '🐕' },
+  'Navy':             { emoji: '⚓' },
+
+  // ── Ivy League ──
+  'Columbia':         { emoji: '🦁' },
+  'Cornell':          { emoji: '🐻' },
+  'Dartmouth':        { emoji: '💚' },
+  'Harvard':          { emoji: '📚' },
+  'Penn':             { emoji: '🔴' },
+  'Princeton':        { emoji: '🐯' },
+  'Yale':             { emoji: '🐶' },
+
+  // ── Southern ──
+  'East Tennessee State':{ short: 'ETSU',          emoji: '🦬' },
+  'Furman':           { emoji: '🟣' },
+  'Mercer':           { emoji: '🐻' },
+  'Samford':          { emoji: '🐶' },
+  'The Citadel':      { emoji: '⚔️' },
+  'VMI':              { emoji: '⚔️' },
+  'Western Carolina': { short: 'Western Car',      emoji: '🐱' },
+  'Wofford':          { emoji: '🐕' },
+  'UNC Greensboro':   { emoji: '🌀' },
+
+  // ── Horizon ──
+  'Cleveland State':  { short: 'Cleveland St',     emoji: '⚔️' },
+  'Detroit Mercy':    { short: 'Detroit',          emoji: '⚙️' },
+  'IUPUI':            { emoji: '🔵' },
+  'Milwaukee':        { emoji: '🦅' },
+  'Northern Kentucky':{ short: 'NKU',              emoji: '🏹' },
+  'Oakland':          { emoji: '🦌' },
+  'Purdue Fort Wayne':{ short: 'Purdue FW',        emoji: '🔵' },
+  'Robert Morris':    { emoji: '🦅' },
+  'Wright State':     { emoji: '🦅' },
+  'Youngstown State': { short: 'Youngstown',       emoji: '🐧' },
+  'UIC':              { emoji: '🔵' },
+
+  // ── MAAC ──
+  'Canisius':         { emoji: '🦅' },
+  'Fairfield':        { emoji: '🦌' },
+  'Iona':             { emoji: '🏰' },
+  'Manhattan':        { emoji: '🗽' },
+  'Marist':           { emoji: '🦊' },
+  'Niagara':          { emoji: '💧' },
+  'Quinnipiac':       { emoji: '🐻' },
+  'Rider':            { emoji: '🦅' },
+  "Saint Peter's":    { short: "St Peter's",       emoji: '🦚' },
+  'Siena':            { emoji: '🟢' },
+
+  // ── Big Sky ──
+  'Eastern Washington':{ short: 'E Washington',    emoji: '🦅' },
+  'Gardner-Webb':     { emoji: '🔵' },
+  'High Point':       { emoji: '🔵' },
+  'Idaho':            { emoji: '🥔' },
+  'Idaho State':      { emoji: '🐻' },
+  'Longwood':         { emoji: '🌲' },
+  'Montana':          { emoji: '⛰️' },
+  'Montana State':    { short: 'Montana St',       emoji: '🐱' },
+  'Northern Arizona': { short: 'N Arizona',        emoji: '🐺' },
+  'Northern Colorado':{ short: 'N Colorado',       emoji: '🐻' },
+  'Portland State':   { short: 'Portland St',      emoji: '🌲' },
+  'Radford':          { emoji: '🔵' },
+  'Sacramento State': { short: 'Sac State',        emoji: '🐝' },
+  'Southern Utah':    { emoji: '🦦' },
+  'UNC Asheville':    { emoji: '🔵' },
+  'Weber State':      { emoji: '🐝' },
+  'Winthrop':         { emoji: '🦅' },
+
+  // ── Big West ──
+  'Cal Poly':         { emoji: '🐴' },
+  'Cal State Bakersfield':{ short: 'CSUB',         emoji: '🐕' },
+  'Cal State Fullerton':{ short: 'CS Fullerton',   emoji: '🐘' },
+  'Cal State Northridge':{ short: 'CSUN',          emoji: '🏔️' },
+  'Hawaii':           { short: 'Hawaiʻi',          emoji: '🌺' },
+  'Long Beach State': { short: 'Long Beach',       emoji: '🌊' },
+  'UC Davis':         { emoji: '🐄' },
+  'UC Irvine':        { emoji: '🐜' },
+  'UC Riverside':     { emoji: '🐻' },
+  'UC San Diego':     { emoji: '🌊' },
+  'UC Santa Barbara': { short: 'UCSB',             emoji: '🏄' },
+
+  // ── WAC ──
+  'Grand Canyon':     { short: 'GCU',              emoji: '🏜️' },
+  'Incarnate Word':   { short: 'UIW',              emoji: '⚜️' },
+  'Lamar':            { emoji: '🔴' },
+  'New Mexico State': { short: 'NMSU',             emoji: '🌵' },
+  'Sam Houston':      { emoji: '🤠' },
+  'Seattle':          { emoji: '☕' },
+  'Stephen F. Austin':{ short: 'SFA',              emoji: '🌲' },
+  'Tarleton State':   { short: 'Tarleton',         emoji: '🤠' },
+  'Texas A&M-Corpus Christi':{ short: 'TAMUCC',   emoji: '🌊' },
+  'UT Arlington':     { emoji: '🤠' },
+  'Utah Tech':        { emoji: '🌵' },
+  'Utah Valley':      { emoji: '🦅' },
+
+  // ── Ohio Valley ──
+  'Eastern Illinois': { short: 'E Illinois',       emoji: '🐾' },
+  'Morehead State':   { short: 'Morehead St',      emoji: '🦅' },
+  'SIU Edwardsville': { short: 'SIUe',             emoji: '🟠' },
+  'Southeast Missouri State':{ short: 'SEMO',      emoji: '🟡' },
+  'Southern Indiana': { emoji: '🦅' },
+  'Tennessee Martin': { short: 'UT Martin',        emoji: '🌀' },
+  'Tennessee State':  { short: 'Tenn State',       emoji: '🐯' },
+  'Tennessee Tech':   { short: 'Tenn Tech',        emoji: '🦅' },
+
+  // ── Summit ──
+  'Denver':           { emoji: '⛷️' },
+  'North Dakota State':{ short: 'NDSU',            emoji: '🦬' },
+  'Omaha':            { emoji: '🌾' },
+  'Oral Roberts':     { emoji: '🦅' },
+  'South Dakota State':{ short: 'S Dak St',        emoji: '🐰' },
+  'St. Thomas':       { short: 'St Thomas',        emoji: '🦅' },
+  'Western Illinois': { emoji: '🏹' },
+
+  // ── America East ──
+  'Albany':           { emoji: '🐺' },
+  'Bryant':           { emoji: '🐶' },
+  'Maine':            { emoji: '🦞' },
+  'New Hampshire':    { emoji: '🌲' },
+  'NJIT':             { emoji: '🔵' },
+  'UMass Lowell':     { emoji: '🔵' },
+  'UMBC':             { emoji: '🐕' },
+  'Vermont':          { emoji: '🍁' },
+
+  // ── NEC ──
+  'Central Connecticut':{ short: 'Cent Conn',      emoji: '🔵' },
+  'LIU':              { emoji: '🦁' },
+  'Merrimack':        { emoji: '🟡' },
+  'Sacred Heart':     { emoji: '🤍' },
+  'Saint Francis':    { short: 'St Francis',       emoji: '🟦' },
+  'Wagner':           { emoji: '🦅' },
+
+  // ── SWAC ──
+  'Alcorn State':     { short: 'Alcorn St',        emoji: '🐍' },
+  'Arkansas-Pine Bluff':{ short: 'UAPB',           emoji: '🦁' },
+  'Bethune-Cookman':  { short: 'B-Cookman',        emoji: '🐾' },
+  'Florida A&M':      { short: 'FAMU',             emoji: '🐍' },
+  'Grambling':        { emoji: '🐯' },
+  'Grambling State':  { short: 'Grambling',        emoji: '🐯' },
+  'Houston Christian':{ short: 'HCU',              emoji: '🐝' },
+  'Jackson State':    { short: 'Jackson St',       emoji: '🐯' },
+  'Mississippi Valley State':{ short: 'Miss Valley',emoji: '🐶' },
+  'Prairie View A&M': { short: 'PV A&M',           emoji: '🐾' },
+  'Southern':         { emoji: '🐾' },
+  'Texas Southern':   { emoji: '🐯' },
+
+  // ── MEAC ──
+  'Coppin State':     { short: 'Coppin St',        emoji: '🦅' },
+  'Delaware State':   { short: 'Delaware St',      emoji: '🐉' },
+  'Howard':           { emoji: '🦬' },
+  'Maryland Eastern Shore':{ short: 'UMES',        emoji: '🦅' },
+  'Morgan State':     { emoji: '🐻' },
+  'Norfolk State':    { short: 'Norfolk St',       emoji: '🐯' },
+  'North Carolina Central':{ short: 'NCCU',        emoji: '🦅' },
+  'South Carolina State':{ short: 'SC State',      emoji: '🐍' },
+
+  // ── Misc ──
+  'McNeese':          { emoji: '🤠' },
+  'Nicholls':         { emoji: '🐊' },
+  'Southeastern Louisiana':{ short: 'SE La',       emoji: '🦅' },
+  'North Carolina A&T':{ short: 'NC A&T',          emoji: '🐊' },
+};
+
+const DEFAULT_EMOJI = '🏀';
+
+// ─── TEAM LIST — built entirely from ESPN's API at boot ───────────────────────
+let TEAM_LIST = [];
+
+// Build TEAM_LIST from ESPN's canonical teams endpoint.
+// IDs are NEVER hardcoded — they come directly from ESPN.
+// ESPN conference group IDs for men's college basketball (2025-26 season)
+// Fetching by conference gives us accurate conf membership + team IDs in one shot.
+const ESPN_CONF_GROUPS = [
+  { id: '2',    short: 'ACC',    full: 'Atlantic Coast' },
+  { id: '4',    short: 'B10',    full: 'Big Ten' },
+  { id: '8',    short: 'SEC',    full: 'Southeastern' },
+  { id: '12',   short: 'B12',    full: 'Big 12' },
+  { id: '22',   short: 'BE',     full: 'Big East' },
+  { id: '3',    short: 'A10',    full: 'Atlantic 10' },
+  { id: '26',   short: 'WCC',    full: 'West Coast' },
+  { id: '18',   short: 'MW',     full: 'Mountain West' },
+  { id: '24',   short: 'MVC',    full: 'Missouri Valley' },
+  { id: '14',   short: 'MAC',    full: 'Mid-American' },
+  { id: '151',  short: 'AAC',    full: 'American Athletic' },
+  { id: '37',   short: 'SBC',    full: 'Sun Belt' },
+  { id: '46',   short: 'ASUN',   full: 'Atlantic Sun' },
+  { id: '47',   short: 'CAA',    full: 'Colonial Athletic' },
+  { id: '48',   short: 'Pat',    full: 'Patriot' },
+  { id: '49',   short: 'Ivy',    full: 'Ivy League' },
+  { id: '29',   short: 'SoCon',  full: 'Southern' },
+  { id: '45',   short: 'HL',     full: 'Horizon' },
+  { id: '73',   short: 'MAAC',   full: 'Metro Atlantic Athletic' },
+  { id: '40',   short: 'BSky',   full: 'Big Sky' },
+  { id: '172',  short: 'BW',     full: 'Big West' },
+  { id: '32',   short: 'WAC',    full: 'Western Athletic' },
+  { id: '19',   short: 'OVC',    full: 'Ohio Valley' },
+  { id: '23',   short: 'Sum',    full: 'Summit' },
+  { id: '173',  short: 'AE',     full: 'America East' },
+  { id: '2590', short: 'NEC',    full: 'Northeast' },
+  { id: '79',   short: 'SWAC',   full: 'Southwestern Athletic' },
+  { id: '55',   short: 'MEAC',   full: 'Mid-Eastern Athletic' },
+  { id: '60',   short: 'BSouth', full: 'Big South' },
+  { id: '62',   short: 'SLC',    full: 'Southland' },
+];
+
+async function buildTeamListFromESPN() {
+  try {
+    // Fetch all conferences in parallel — each call returns its member teams with real IDs
+    // and we know exactly which conference they belong to.
+    const results = await Promise.allSettled(
+      ESPN_CONF_GROUPS.map(conf =>
+        fetch(
+          `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams?groups=${conf.id}&limit=100`,
+          { cache: 'no-store' }
+        ).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(data => ({ conf, data }))
+      )
+    );
+
+    const seen = new Set();
+    const list = [];
+
+    for (const result of results) {
+      if (result.status !== 'fulfilled') continue;
+      const { conf, data } = result.value;
+      const espnTeams = data.sports?.[0]?.leagues?.[0]?.teams?.map(t => t.team) || [];
+
+      for (const t of espnTeams) {
+        if (!t.id) continue;
+
+        // Match metadata by ESPN name fields (tries location first, then short/display names)
+        const keys = [t.location, t.shortDisplayName, t.displayName, t.name].filter(Boolean);
+        let meta = {};
+        for (const k of keys) {
+          if (TEAM_META[k]) { meta = TEAM_META[k]; break; }
+        }
+
+        const display = meta.display || t.shortDisplayName || t.location || t.displayName || 'Unknown';
+
+        // Deduplicate — skip if we already saw this team from another conf fetch
+        if (seen.has(String(t.id))) continue;
+        seen.add(String(t.id));
+
+        list.push({
+          id:            String(t.id),
+          display,
+          short:         meta.short || t.abbreviation || display,
+          emoji:         meta.emoji || DEFAULT_EMOJI,
+          conf:          conf.short,
+          confFull:      conf.full,
+          confId:        conf.id,
+          vibe:          meta.vibe || 'love',
+          aliases:       meta.aliases || [],
+          _espnLocation: t.location || '',
+        });
+      }
+    }
+
+    list.sort((a, b) => a.display.localeCompare(b.display));
+    TEAM_LIST = list;
+    console.log(`✅ TEAM_LIST: ${TEAM_LIST.length} teams across ${ESPN_CONF_GROUPS.length} conferences`);
+  } catch(e) {
+    console.error('ESPN team list fetch failed:', e);
+  }
+}
+
+
+
+// Build conference filter categories from live TEAM_LIST
+function buildConferenceCategories() {
+  const seen = new Map();
+  for (const t of TEAM_LIST) {
+    if (t.conf && t.conf !== '—' && !seen.has(t.conf)) seen.set(t.conf, t.conf);
+  }
+  return Array.from(seen.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map(c => ({ id: c, label: c }));
+}
+
+// ─── CELEBRITY PACKS ──────────────────────────────────────────────────────────
+const CELEB_PACKS = [
+  {
+    name: 'MJ', fullName: 'Michael Jordan', avatar: '🐐',
+    teams: ['North Carolina', 'Illinois', 'NC State', 'Marquette', 'Georgetown', 'Kansas'],
+  },
+  {
+    name: 'LeBron', fullName: 'LeBron James', avatar: '👑',
+    // 'UConn' resolves via display override; 'Dook' via alias on Duke's entry
+    teams: ['Ohio State', 'Kentucky', 'Akron', 'UCLA', 'Michigan', 'Dook'],
+  },
+  {
+    name: 'Brady', fullName: 'Tom Brady', avatar: '🏈',
+    teams: ['Michigan', 'Michigan State', 'UCLA', 'Notre Dame', 'Stanford', 'UConn'],
+  },
+  {
+    name: 'Obama', fullName: 'Barack Obama', avatar: '🇺🇸',
+    teams: ['Illinois', 'Kansas', 'North Carolina', 'Oregon', 'Harvard', 'Michigan State'],
+  },
+  {
+    name: 'Barkley', fullName: 'Charles Barkley', avatar: '🍑',
+    teams: ['Auburn', 'Alabama', 'LSU', 'Gonzaga', 'Kansas', 'Kentucky'],
+  },
+];
+
+function findTeamByName(name) {
+  const lower = name.toLowerCase();
+  return TEAM_LIST.find(t =>
+    t.display === name ||
+    t.display.toLowerCase() === lower ||
+    t._espnLocation?.toLowerCase() === lower ||
+    t.aliases.includes(lower)
+  );
+}
+
+function loadCelebPack(pack) {
+  const resolved = pack.teams.map(findTeamByName).filter(Boolean).slice(0, 6);
+  selectedTeams = resolved;
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function renderCelebRow() {
+  const row = document.getElementById('celeb-row');
+  row.innerHTML = CELEB_PACKS.map(pack => `
+    <div class="celeb-chip" onclick="loadCelebPack(CELEB_PACKS.find(p=>p.name==='${pack.name}'))"
+         title="${pack.fullName}'s picks">
+      <span class="celeb-avatar">${pack.avatar}</span>
+      <span class="celeb-name">${pack.name}</span>
+    </div>`).join('');
+}
+
+// ─── AP RANKINGS ──────────────────────────────────────────────────────────────
+let cachedTop25Ids = null;
+
+async function fetchTop25Ids() {
+  if (cachedTop25Ids) return cachedTop25Ids;
+  try {
+    const r = await fetch(
+      'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings',
+      { cache: 'no-store' }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const ap = (data.rankings || []).find(p =>
+      p.type === 'ap' || (p.name || '').includes('AP')
+    ) || data.rankings?.[0];
+    if (!ap?.ranks?.length) throw new Error('No ranks found');
+    cachedTop25Ids = ap.ranks
+      .sort((a, b) => a.current - b.current)
+      .map(rk => String(rk.team?.id))
+      .filter(Boolean);
+    return cachedTop25Ids;
+  } catch(e) {
+    console.warn('Rankings fetch failed:', e);
+    return null;
+  }
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+// v3 key — avoids loading corrupt old hardcoded-ID data
+const STORAGE_KEY = 'dww_selected_teams_v3';
+
+function loadSavedNames() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function resolveFromSaved(names) {
+  return names.map(name => TEAM_LIST.find(t => t.display === name)).filter(Boolean);
+}
+
+function saveSaved(teams) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(teams.map(t => t.display))); } catch {}
+}
+
+let selectedTeams = [];
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+const fmtTime = d => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+const fmtDateShort = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+
+function smartDate(dateStr) {
+  const now   = new Date();
+  const game  = new Date(dateStr);
+  const etNow  = new Date(now.toLocaleString('en-US',  { timeZone: 'America/New_York' }));
+  const etGame = new Date(game.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const diffDays = Math.round((new Date(etGame).setHours(0,0,0,0) - new Date(etNow).setHours(0,0,0,0)) / 86400000);
+  const gameHour = new Date(game.toLocaleString('en-US', { timeZone: 'America/New_York' })).getHours();
+  const eve = gameHour >= 19;
+  if (diffDays === 0)  return eve ? 'Tonight' : 'Today';
+  if (diffDays === 1)  return eve ? 'Tomorrow night' : 'Tomorrow';
+  if (diffDays === -1) return eve ? 'Last night' : 'Yesterday';
+  if (diffDays === 2)  return 'In 2 days';
+  return fmtDateShort(dateStr);
+}
+
+function teamMatches(c, teamId) {
+  return c.team?.id === teamId || c.team?.id === String(teamId) ||
+         c.id === teamId || c.id === String(teamId);
+}
+function getMe(comp, teamId)  { return comp.competitors?.find(c => teamMatches(c, teamId)); }
+function getOpp(comp, teamId) { return comp.competitors?.find(c => !teamMatches(c, teamId)); }
+
+function extractScore(c) {
+  if (!c) return '?';
+  const s = c.score;
+  if (s == null) return '?';
+  if (typeof s === 'object') return s.displayValue ?? s.value ?? '?';
+  return s;
+}
+
+function periodLabel(comp) {
+  const s = comp.status;
+  if (!s) return '';
+  const p = s.period || 0;
+  const half = p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT';
+  const clock = s.displayClock;
+  return (clock && clock !== '0:00') ? `${half} · ${clock}` : half;
+}
+
+// ─── FETCH ───────────────────────────────────────────────────────────────────
+async function fetchTeam(team) {
+  const [schedRes, summaryRes] = await Promise.all([
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
+    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
+  ]);
+  if (!schedRes.ok) throw new Error(`HTTP ${schedRes.status}`);
+  const data        = await schedRes.json();
+  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+
+  const events = (data.events || []).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let lastCompleted = null, liveGame = null, nextGame = null;
+  const allGames = [];
+
+  for (const ev of events) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+    const state = comp.status?.type?.state;
+    allGames.push({ ev, comp, state });
+    if      (state === 'post')               lastCompleted = { ev, comp };
+    else if (state === 'in')                 liveGame      = { ev, comp };
+    else if (state === 'pre' && !nextGame)   nextGame      = { ev, comp };
+  }
+
+  const teamInfo  = summaryData?.team || data.team || {};
+  const recItems  = teamInfo?.record?.items || data.team?.record?.items || [];
+  const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
+  const recordStr = totalRec?.summary || '';
+
+  let confRecordStr = '';
+  try {
+    if (team.confId) {
+      const confRes = await fetch(
+        `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/2026/types/2/groups/${team.confId}/teams/${team.id}/records/9`,
+        { cache: 'no-store' }
+      );
+      if (confRes.ok) {
+        const confData = await confRes.json();
+        confRecordStr = confData.summary || confData.displayValue || '';
+      }
+    }
+  } catch(e) {
+    confRecordStr = data.team?.standingSummary || '';
+  }
+
+  let apRank = null;
+  const top25 = cachedTop25Ids || [];
+  const rankIdx = top25.indexOf(String(team.id));
+  if (rankIdx !== -1) apRank = rankIdx + 1;
+
+  if (liveGame) {
+    try {
+      const liveRes = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=${liveGame.ev.id}`,
+        { cache: 'no-store' }
+      );
+      if (liveRes.ok) {
+        const liveData = await liveRes.json();
+        const liveComp = liveData.header?.competitions?.[0];
+        if (liveComp) liveGame.comp = liveComp;
+      }
+    } catch(e) {}
+  }
+
+  return { team, lastCompleted, liveGame, nextGame, allGames, recordStr, confRecordStr, apRank };
+}
+
+function getOppRank(comp, teamId) {
+  const opp = getOpp(comp, teamId);
+  if (!opp) return null;
+  const oppId = String(opp.team?.id || opp.id || '');
+  if (!oppId || !cachedTop25Ids) return null;
+  const idx = cachedTop25Ids.indexOf(oppId);
+  return idx !== -1 ? idx + 1 : null;
+}
+
+// ─── CARD THEMES ─────────────────────────────────────────────────────────────
+const LOVE_THEMES = [
+  { bg: 'linear-gradient(145deg, #1a3a6b 0%, #2355a0 55%, #3470c8 100%)', shadow: 'rgba(35,85,160,0.4)' },
+  { bg: 'linear-gradient(145deg, #1a5c2e 0%, #237a3d 55%, #2e9e50 100%)', shadow: 'rgba(35,122,61,0.4)' },
+  { bg: 'linear-gradient(145deg, #6b1a1a 0%, #a02323 55%, #c83434 100%)', shadow: 'rgba(160,35,35,0.4)' },
+  { bg: 'linear-gradient(145deg, #4a1a6b 0%, #6c23a0 55%, #8a34c8 100%)', shadow: 'rgba(108,35,160,0.4)' },
+  { bg: 'linear-gradient(145deg, #1a4a5c 0%, #237a8e 55%, #2e9eb8 100%)', shadow: 'rgba(35,122,142,0.4)' },
+  { bg: 'linear-gradient(145deg, #5c3d1a 0%, #8e6123 55%, #b87c2e 100%)', shadow: 'rgba(142,97,35,0.4)' },
+];
+
+function getCardTheme(team, idx) {
+  if (team.vibe === 'hate') return { cls: 'hate-card', style: '' };
+  const theme = LOVE_THEMES[idx % LOVE_THEMES.length];
+  return { cls: 'love-card', style: `--card-bg:${theme.bg};--card-shadow:${theme.shadow};` };
+}
+
+// ─── RENDER FRONT ─────────────────────────────────────────────────────────────
+function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confRecordStr, apRank }) {
+  const tid = team.id;
+  const isDook = team.display === 'Dook';
+  const isHate = team.vibe === 'hate';
+
+  let answerHTML = '', liveDetailsHTML = '';
+
+  if (liveGame) {
+    const me  = getMe(liveGame.comp, tid);
+    const opp = getOpp(liveGame.comp, tid);
+    const myS  = extractScore(me), oppS = extractScore(opp);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(liveGame.comp, tid);
+    const atStr  = me?.homeAway === 'home' ? 'vs' : '@';
+    const rankBit = oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : '';
+    const myScoreN = parseInt(myS) || 0, oppScoreN = parseInt(oppS) || 0;
+    const winBit = (myScoreN > 0 || oppScoreN > 0)
+      ? (myScoreN > oppScoreN ? ' <span class="winning-tag">▲ Winning</span>'
+       : myScoreN < oppScoreN ? ' <span class="winning-tag losing">▼ Losing</span>'
+       : ' <span class="winning-tag tied">Tied</span>') : '';
+    answerHTML      = `<div class="answer live">LIVE</div>`;
+    liveDetailsHTML = `
+      <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
+      <div class="live-opponent">${atStr}${rankBit} <strong>${oppName}</strong></div>`;
+  } else if (lastCompleted) {
+    const me  = getMe(lastCompleted.comp, tid);
+    const won = me?.winner === true;
+    const yesEmoji = isDook ? '🤢' : isHate ? '😒' : '🎉';
+    const noEmoji  = isDook ? '🎉🎊🙌' : isHate ? '😂' : '😬';
+    answerHTML = `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES ' + yesEmoji : 'NO ' + noEmoji}</div>`;
+  } else {
+    answerHTML = `<div class="answer tbd">—</div>`;
+  }
+
+  const rankHTML = apRank ? `<span class="rank-badge">#${apRank} AP</span>` : '';
+  const recParts = [];
+  if (recordStr)     recParts.push(`<span class="rec-item">${recordStr} overall</span>`);
+  if (confRecordStr) recParts.push(`<span class="rec-item conf">${confRecordStr}</span>`);
+  const statsHTML = (rankHTML || recParts.length) ? `<div class="stats-row">${rankHTML}${recParts.join('')}</div>` : '';
+
+  let lastGameHTML = '';
+  if (lastCompleted) {
+    const { ev, comp } = lastCompleted;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const won = me?.winner === true;
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const when  = smartDate(ev.date);
+    lastGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Last game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+        </div>
+      </div>`;
+  }
+
+  let nextGameHTML = '';
+  if (nextGame) {
+    const { ev, comp } = nextGame;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const when  = smartDate(ev.date);
+    const time  = fmtTime(ev.date);
+    nextGameHTML = `
+      <div class="front-game">
+        <div class="front-game-label">Next game</div>
+        <div class="front-game-line">
+          ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
+          <span class="front-badge up">${time}</span>
+        </div>
+      </div>`;
+  }
+
+  const tagText = isDook ? '🤮 absolute garbage' : isHate ? '🗑️ boo' : null;
+  const tagClass = isHate ? 'hate-tag' : 'love-tag';
+
+  return `
+    <div class="team-header">
+      <span class="team-emoji">${team.emoji}</span>
+      <div class="team-name-row"><span class="team-name">${team.display}</span></div>
+      ${tagText ? `<div class="team-tag-row"><span class="${tagClass}">${tagText}</span></div>` : ''}
+      <div class="team-sub">${team.conf} · ${team.short}</div>
+    </div>
+    ${answerHTML}
+    ${liveDetailsHTML}
+    ${statsHTML}
+    ${lastGameHTML}
+    ${nextGameHTML}
+    <div class="hint"><span class="hint-hover">hover</span><span class="hint-tap">tap</span> for schedule ↗</div>
+  `;
+}
+
+// ─── RENDER BACK ──────────────────────────────────────────────────────────────
+function renderBack({ team, allGames, liveGame, apRank, recordStr, confRecordStr }) {
+  const tid = team.id;
+  const completed = allGames.filter(g => g.state === 'post').slice(-5);
+  const live      = allGames.filter(g => g.state === 'in');
+  const upcoming  = allGames.filter(g => g.state === 'pre').slice(0, 5);
+
+  const completedRows = completed.map(({ ev, comp }) => {
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const won   = me?.winner === true;
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const when  = smartDate(ev.date);
+    const rStr  = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row">
+      <span class="sched-date">${when}</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+    </div>`;
+  }).join('');
+
+  const liveRows = live.map(({ ev, comp: rawComp }) => {
+    const comp = (liveGame && liveGame.ev.id === ev.id) ? liveGame.comp : rawComp;
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr = me?.homeAway === 'home' ? 'vs' : '@';
+    const myS = extractScore(me), oppS = extractScore(opp);
+    const rStr  = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row current">
+      <span class="sched-date">Now</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result live">LIVE ${myS}–${oppS} · ${periodLabel(comp)}</span>
+    </div>`;
+  }).join('');
+
+  const upcomingRows = upcoming.map(({ ev, comp }, i) => {
+    const me  = getMe(comp, tid), opp = getOpp(comp, tid);
+    const oppName = opp?.team?.shortDisplayName || opp?.team?.displayName || 'Opp';
+    const oppRank = getOppRank(comp, tid);
+    const atStr  = me?.homeAway === 'home' ? 'vs' : '@';
+    const isNext = i === 0 && !live.length;
+    const when   = smartDate(ev.date);
+    const time   = fmtTime(ev.date);
+    const rStr   = oppRank ? `<span class="sched-opp-rank">#${oppRank}</span> ` : '';
+    return `<div class="sched-row ${isNext ? 'current' : ''}">
+      <span class="sched-date">${when}</span>
+      <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
+      <span class="sched-result upcoming">${time}</span>
+    </div>`;
+  }).join('');
+
+  const rankStr = apRank ? `<span class="back-rank">#${apRank} AP</span>` : '';
+  const recStr  = recordStr ? `<span class="back-rec">${recordStr}</span>` : '';
+  const confStr = confRecordStr ? `<span class="back-rec conf">${confRecordStr}</span>` : '';
+
+  return `
+    <div class="back-header">
+      <span class="back-title">${team.emoji} Schedule</span>
+      <span class="back-meta">${rankStr}${recStr}${confStr}</span>
+    </div>
+    <div class="schedule-list">
+      ${completedRows}
+      ${(liveRows || upcomingRows) ? '<div class="divider"></div>' : ''}
+      ${liveRows}
+      ${upcomingRows}
+    </div>
+  `;
+}
+
+// ─── CARD SHELL ───────────────────────────────────────────────────────────────
+function renderCard(result, idx) {
+  const { cls, style } = getCardTheme(result.team, idx);
+  return `
+    <div class="card ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);box-shadow:0 8px 40px var(--card-shadow),0 0 0 1px rgba(255,255,255,0.06);`:''}" onclick="this.classList.toggle('flipped')">
+      <div class="card-front">${renderFront(result)}</div>
+      <div class="card-back">${renderBack(result)}</div>
+    </div>`;
+}
+
+function renderError(team, idx) {
+  const { cls, style } = getCardTheme(team, idx);
+  return `
+    <div class="card ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);`:'' }">
+      <div class="card-front">
+        <div><span class="team-emoji">${team.emoji}</span><span class="team-name">${team.display}</span></div>
+        <div class="answer tbd">—</div>
+        <div style="color:rgba(255,255,255,0.2);font-size:0.72rem;font-style:italic">Couldn't load · will retry</div>
+      </div>
+      <div class="card-back"><div class="back-title">No data</div></div>
+    </div>`;
+}
+
+// ─── MAIN LOAD ────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const grid = document.getElementById('grid');
+  if (!selectedTeams.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🏀</div><p>Select your favorite teams below to get started</p></div>`;
+    return;
+  }
+
+  if (!grid.children.length || grid.querySelector('.empty-state')) {
+    grid.innerHTML = selectedTeams.map((t, i) => {
+      const { cls, style } = getCardTheme(t, i);
+      return `<div class="card loading ${cls}" style="${style}${cls==='love-card'?`background:var(--card-bg);`:''}" >
+        <div class="card-front">
+          <div><span class="team-emoji">${t.emoji}</span><span class="team-name">${t.display}</span></div>
+          <div class="answer tbd" style="margin-top:auto">…</div>
+        </div>
+        <div class="card-back"></div>
+      </div>`;
+    }).join('');
+  }
+
+  const results = await Promise.allSettled(selectedTeams.map(fetchTeam));
+
+  grid.innerHTML = results.map((r, i) =>
+    r.status === 'fulfilled' ? renderCard(r.value, i) : renderError(selectedTeams[i], i)
+  ).join('');
+
+  document.getElementById('last-updated').textContent =
+    new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning'); btn.disabled = true;
+  loadAll().finally(() => { btn.classList.remove('spinning'); btn.disabled = false; });
+}
+
+// ─── CATEGORY / TOP 25 ───────────────────────────────────────────────────────
+async function getCategoryTeams(catId) {
+  if (catId === 'top25') {
+    const ids = await fetchTop25Ids();
+    if (!ids || !ids.length) return null;
+    return ids.map(id => TEAM_LIST.find(t => t.id === id)).filter(Boolean);
+  }
+  return TEAM_LIST.filter(t => t.conf === catId);
+}
+
+let activeCategory = null;
+
+// ─── SELECTOR UI ─────────────────────────────────────────────────────────────
+let searchQuery = '';
+let dragSrcIdx  = null;
+
+function isSelected(team) { return selectedTeams.some(t => t.display === team.display); }
+
+function toggleTeam(team) {
+  if (isSelected(team)) {
+    selectedTeams = selectedTeams.filter(t => t.display !== team.display);
+  } else if (selectedTeams.length < 6) {
+    selectedTeams = [...selectedTeams, team];
+  }
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function removeTeam(display) {
+  selectedTeams = selectedTeams.filter(t => t.display !== display);
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function clearAllTeams() {
+  selectedTeams = [];
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+
+function renderChips() {
+  const container = document.getElementById('selected-chips');
+  const clearBtn  = document.getElementById('clear-all-btn');
+  if (!selectedTeams.length) {
+    container.innerHTML = '<span style="color:rgba(255,255,255,0.15);font-size:0.75rem;">No teams selected yet</span>';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = 'inline-block';
+  container.innerHTML = selectedTeams.map((t, i) => `
+    <div class="chip" draggable="true" data-idx="${i}"
+         ondragstart="dragStart(event,${i})"
+         ondragover="dragOver(event,${i})"
+         ondrop="dropOn(event,${i})"
+         ondragend="dragEnd(event)">
+      <span class="chip-drag-handle">⠿</span>
+      <span class="chip-emoji">${t.emoji}</span>
+      <span class="chip-name">${t.short || t.display}</span>
+      <span class="chip-remove" onclick="removeTeam('${t.display.replace(/'/g,"\\'")}')">✕</span>
+    </div>`).join('');
+}
+
+async function renderBrowser() {
+  const container = document.getElementById('team-browser');
+  const q = searchQuery.toLowerCase().trim();
+
+  let filtered;
+  if (q) {
+    filtered = TEAM_LIST.filter(t =>
+      t.display.toLowerCase().includes(q) ||
+      t.conf.toLowerCase().includes(q) ||
+      t._espnLocation?.toLowerCase().includes(q) ||
+      t.aliases.some(a => a.includes(q))
+    );
+  } else if (activeCategory) {
+    container.innerHTML = '<div class="no-results" style="color:rgba(255,255,255,0.15)">Loading…</div>';
+    filtered = await getCategoryTeams(activeCategory);
+    if (filtered === null) {
+      container.innerHTML = '<div class="no-results">Couldn\'t load rankings — try again in a moment</div>';
+      return;
+    }
+  } else {
+    filtered = TEAM_LIST;
+  }
+
+  const maxReached = selectedTeams.length >= 6;
+
+  if (!filtered || !filtered.length) {
+    container.innerHTML = '<div class="no-results">No teams found</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const sel = isSelected(t);
+    const dis = maxReached && !sel;
+    const hateClass = t.vibe === 'hate' ? 'hate-option' : '';
+    return `<div class="team-option ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''} ${hateClass}"
+                 onclick="toggleTeam(TEAM_LIST.find(x=>x.display==='${t.display.replace(/'/g,"\\'")}'))">
+      <div class="option-check">${sel ? '✓' : ''}</div>
+      <span class="option-emoji">${t.emoji}</span>
+      <div class="option-info">
+        <div class="option-name">${t.display}</div>
+        <div class="option-conf">${t.conf}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCategories() {
+  const row   = document.getElementById('category-row');
+  const label = document.getElementById('cat-active-label');
+  const confCats = buildConferenceCategories();
+  const allCats  = [{ id: 'top25', label: '🏆 Top 25' }, ...confCats];
+
+  row.innerHTML = allCats.map(c => {
+    const isActive = activeCategory === c.id;
+    return `<span class="cat-pill ${isActive ? 'active' : ''}" onclick="selectCategory('${c.id}')">${c.label}</span>`;
+  }).join('') + (activeCategory ? `<span class="cat-clear" onclick="clearCategory()">✕ Clear</span>` : '');
+
+  if (activeCategory) {
+    const cat = allCats.find(c => c.id === activeCategory);
+    label.textContent = `Filtering by: ${cat?.label || activeCategory}`;
+    label.classList.add('visible');
+  } else {
+    label.classList.remove('visible');
+  }
+}
+
+async function selectCategory(id) {
+  activeCategory = activeCategory === id ? null : id;
+  searchQuery = '';
+  document.getElementById('team-search').value = '';
+  renderCategories();
+  await renderBrowser();
+}
+
+function clearCategory() {
+  activeCategory = null;
+  renderCategories();
+  renderBrowser();
+}
+
+async function renderSelector() {
+  renderChips();
+  renderCelebRow();
+  renderCategories();
+  await renderBrowser();
+  document.getElementById('sel-count').textContent =
+    `${selectedTeams.length} / 6 selected · drag chips to reorder`;
+}
+
+document.getElementById('team-search').addEventListener('input', async e => {
+  searchQuery = e.target.value;
+  if (searchQuery) activeCategory = null;
+  await renderBrowser();
+  renderCategories();
+});
+
+// Drag to reorder
+function dragStart(e, idx) {
+  dragSrcIdx = idx;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function dragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('drag-over'));
+  if (idx !== dragSrcIdx) e.currentTarget.classList.add('drag-over');
+}
+function dropOn(e, toIdx) {
+  e.preventDefault();
+  if (dragSrcIdx === null || dragSrcIdx === toIdx) return;
+  const moved = selectedTeams.splice(dragSrcIdx, 1)[0];
+  selectedTeams.splice(toIdx, 0, moved);
+  dragSrcIdx = null;
+  saveSaved(selectedTeams);
+  renderSelector();
+  loadAll();
+}
+function dragEnd(e) {
+  dragSrcIdx = null;
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.remove('dragging');
+    c.classList.remove('drag-over');
+  });
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+// 1) Fetch ESPN's full team list (real IDs) + AP poll in parallel
+// 2) Resolve any previously saved team names against the fresh TEAM_LIST
+// 3) Render UI, start 60s refresh loop
+(async () => {
+  const savedNames = loadSavedNames();
+  await Promise.all([buildTeamListFromESPN(), fetchTop25Ids()]);
+  selectedTeams = resolveFromSaved(savedNames);
+  await renderSelector();
+  await loadAll();
+  setInterval(loadAll, 60_000);
+})();
+</script>
+</body>
+</html>
