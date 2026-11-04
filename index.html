@@ -1757,8 +1757,8 @@ async function buildTeamListFromESPN() {
   list.forEach(t => confCounts[t.conf] = (confCounts[t.conf]||0)+1);
   console.log(`✅ TEAM_LIST: ${list.length} teams`, confCounts);
 
-  // Background: verify IDs from ESPN and fix any that are wrong
-  verifyIdsFromESPN();
+  // ESPN's /teams list endpoint now blocks cross-site requests, so the
+  // background ID check (verifyIdsFromESPN) is skipped.
 }
 
 // Verify our hardcoded IDs against ESPN's live data and fix mismatches silently
@@ -1944,13 +1944,14 @@ function periodLabel(comp) {
 
 // ─── FETCH ───────────────────────────────────────────────────────────────────
 async function fetchTeam(team) {
-  const [schedRes, summaryRes] = await Promise.all([
-    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' }),
-    fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}`, { cache: 'no-store' }),
-  ]);
+  // Only the schedule endpoint is used: ESPN's /teams/{id} endpoint no longer
+  // sends CORS headers, and a failed fetch there used to break every card.
+  const schedRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' });
   if (!schedRes.ok) throw new Error(`HTTP ${schedRes.status}`);
-  const data        = await schedRes.json();
-  const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+  const data = await schedRes.json();
+  // Season year comes from ESPN (e.g. 2027 for 2026-27) so it rolls over on its own.
+  const seasonYear = data.season?.year || data.requestedSeason?.year ||
+    (new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear());
 
   const events = (data.events || []).sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -1967,16 +1968,15 @@ async function fetchTeam(team) {
     else if (state === 'pre' && !nextGame)   nextGame      = { ev, comp };
   }
 
-  const teamInfo  = summaryData?.team || data.team || {};
-  const recItems  = teamInfo?.record?.items || data.team?.record?.items || [];
+  const recItems  = data.team?.record?.items || [];
   const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
-  const recordStr = totalRec?.summary || '';
+  const recordStr = data.team?.recordSummary || totalRec?.summary || '';
 
   let confRecordStr = '';
   try {
     if (team.confId) {
       const confRes = await fetch(
-        `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/2026/types/2/groups/${team.confId}/teams/${team.id}/records/9`,
+        `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/${seasonYear}/types/2/groups/${team.confId}/teams/${team.id}/records/9`,
         { cache: 'no-store' }
       );
       if (confRes.ok) {
@@ -2473,7 +2473,7 @@ window.debugDWW = function() {
   // Test conf record fetch for first selected team
   const t = selectedTeams[0];
   if (t) {
-    const url = `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/2026/types/2/groups/${t.confId}/teams/${t.id}/records/9`;
+    const url = `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/${new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear()}/types/2/groups/${t.confId}/teams/${t.id}/records/9`;
     console.log(`\nConf record URL for ${t.display}:\n${url}`);
     fetch(url)
       .then(r => { console.log('Status:', r.status); return r.json(); })
