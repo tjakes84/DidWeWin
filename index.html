@@ -845,6 +845,76 @@
     }
     .cat-active-label.visible { display: block; }
 
+    /* ── LIVE STRIP ── */
+    .live-strip {
+      width: 100%;
+      max-width: 1080px;
+      margin: -1rem 0 1.6rem;
+    }
+    .live-strip[hidden] { display: none; }
+    .live-head {
+      display: flex; align-items: baseline; gap: 0.6rem;
+      margin: 0 0.2rem 0.55rem;
+    }
+    .live-title {
+      font-family: 'Anton', sans-serif;
+      font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--live);
+    }
+    .live-sub { font-size: 0.7rem; color: var(--text-dim); letter-spacing: 0.05em; }
+    .live-toggle {
+      margin-left: auto;
+      background: none; border: 1px solid #2a2a2a; color: #777;
+      font-family: 'DM Sans', sans-serif; font-size: 0.65rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 0.2rem 0.65rem; border-radius: 20px; cursor: pointer;
+    }
+    .live-toggle:hover { border-color: #555; color: #aaa; }
+    .live-row {
+      display: flex; gap: 0.7rem;
+      overflow-x: auto; scroll-snap-type: x mandatory;
+      padding: 0.1rem 0.2rem 0.5rem;
+      scrollbar-width: thin;
+    }
+    .mini {
+      flex: 0 0 auto; width: 178px;
+      scroll-snap-align: start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem 0.55rem;
+      color: #ddd; text-decoration: none;
+      display: flex; flex-direction: column; gap: 0.28rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .mini:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .mini.mine { border-color: rgba(251,191,36,0.55); box-shadow: 0 0 0 1px rgba(251,191,36,0.25); }
+    .mini-team { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
+    .mini-team img { width: 18px; height: 18px; object-fit: contain; }
+    .mini-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #bbb; }
+    .mini-rank { font-size: 0.62rem; color: var(--live); margin-right: 0.15rem; }
+    .mini-score { font-variant-numeric: tabular-nums; font-weight: 500; color: #888; }
+    .mini-team.lead .mini-name, .mini-team.lead .mini-score { color: #fff; }
+    .mini-foot {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--live); margin-top: 0.1rem;
+    }
+    .mini-foot .dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--live); margin-right: 0.35rem;
+      animation: livepulse 1.4s ease-in-out infinite;
+    }
+    @keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+    .mini-tag { color: var(--no); }
+    .live-empty { font-size: 0.75rem; color: var(--text-dim); padding: 0.2rem 0.2rem 0; }
+
+    /* ⚡ marker for teams playing right now */
+    .live-bolt {
+      margin-left: 0.3rem; font-size: 0.8em;
+      filter: drop-shadow(0 0 4px rgba(251,191,36,0.6));
+    }
+
   </style>
 </head>
 <body>
@@ -854,6 +924,8 @@
   <p class="subtitle">Men's Basketball · Live Scores</p>
   <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
 </header>
+
+<section class="live-strip" id="live-strip" hidden></section>
 
 <div class="grid" id="grid">
   <div class="empty-state">
@@ -2232,8 +2304,140 @@ function renderError(team, idx) {
     </div>`;
 }
 
+// ─── LIVE NOW ────────────────────────────────────────────────────────────────
+// One scoreboard call (all of Division I, today) feeds the live strip, the ⚡
+// markers in the team picker, and the ⚡ Live filter.
+let LIVE_IDS = new Set();
+let liveShowAll = false;
+let lastLiveEvents = [];
+
+function liveBolt(t) {
+  return LIVE_IDS.has(String(t.id)) ? '<span class="live-bolt" title="Playing now">⚡</span>' : '';
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+async function loadLive() {
+  try {
+    const r = await fetch(
+      'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=400',
+      { cache: 'no-store' }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    lastLiveEvents = (data.events || []).filter(e => e.status?.type?.state === 'in');
+  } catch (e) {
+    console.warn('Live scoreboard fetch failed:', e);
+    return; // keep whatever was showing
+  }
+
+  const newIds = new Set();
+  lastLiveEvents.forEach(e => e.competitions?.[0]?.competitors?.forEach(c => newIds.add(String(c.team?.id))));
+  const changed = newIds.size !== LIVE_IDS.size || [...newIds].some(id => !LIVE_IDS.has(id));
+  LIVE_IDS = newIds;
+
+  renderLiveStrip();
+  if (changed) {
+    // Refresh ⚡ markers without rebuilding the picker (keeps scroll position)
+    document.querySelectorAll('[data-tid]').forEach(el => {
+      const nameEl = el.querySelector('.option-name, .chip-name');
+      if (!nameEl) return;
+      const has = nameEl.querySelector('.live-bolt');
+      const live = LIVE_IDS.has(el.dataset.tid);
+      if (live && !has) nameEl.insertAdjacentHTML('beforeend', '<span class="live-bolt" title="Playing now">⚡</span>');
+      if (!live && has) has.remove();
+    });
+    renderCategories();
+    if (activeCategory === 'live') renderBrowser();
+  }
+}
+
+function liveGameInfo(ev) {
+  const comp = ev.competitions?.[0] || {};
+  const mineIds = new Set(selectedTeams.map(t => String(t.id)));
+  const sides = (comp.competitors || [])
+    .slice()
+    .sort((a, b) => (a.homeAway === 'away' ? -1 : 1)) // away on top
+    .map(c => {
+      const rank = c.curatedRank?.current;
+      return {
+        id: String(c.team?.id),
+        name: c.team?.shortDisplayName || c.team?.abbreviation || '?',
+        logo: c.team?.logo || '',
+        score: parseInt(c.score, 10) || 0,
+        rank: rank && rank <= 25 ? rank : null,
+      };
+    });
+  const ranks = sides.map(s => s.rank).filter(Boolean);
+  const mine = sides.some(s => mineIds.has(s.id));
+  const margin = sides.length === 2 ? Math.abs(sides[0].score - sides[1].score) : 99;
+  const late = (ev.status?.period || 0) >= 2;
+  return {
+    ev, sides, mine,
+    ranked: ranks.length > 0,
+    bestRank: ranks.length ? Math.min(...ranks) : 99,
+    margin,
+    close: late && margin <= 5,
+  };
+}
+
+function renderMini(g) {
+  const lead = g.sides[0].score === g.sides[1]?.score ? -1 : (g.sides[0].score > g.sides[1]?.score ? 0 : 1);
+  const link = g.ev.links?.find(l => (l.rel || []).includes('summary'))?.href ||
+    `https://www.espn.com/mens-college-basketball/game/_/gameId/${g.ev.id}`;
+  const rows = g.sides.map((s, i) => `
+    <div class="mini-team ${i === lead ? 'lead' : ''}">
+      ${s.logo ? `<img src="${escHtml(s.logo)}" alt="" loading="lazy">` : ''}
+      <span class="mini-name">${s.rank ? `<span class="mini-rank">${s.rank}</span>` : ''}${escHtml(s.name)}</span>
+      <span class="mini-score">${s.score}</span>
+    </div>`).join('');
+  const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
+  const tag = g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
+  return `<a class="mini ${g.mine ? 'mine' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
+    ${rows}
+    <div class="mini-foot"><span><span class="dot"></span>${status}</span>${tag}</div>
+  </a>`;
+}
+
+function renderLiveStrip() {
+  const el = document.getElementById('live-strip');
+  const games = lastLiveEvents.map(liveGameInfo);
+  if (!games.length) { el.hidden = true; el.innerHTML = ''; return; }
+
+  // Your teams first, then ranked games by best rank, then the closest games
+  games.sort((a, b) =>
+    (b.mine - a.mine) || (a.bestRank - b.bestRank) || (a.margin - b.margin));
+  const featured = games.filter(g => g.mine || g.ranked);
+  const others = games.length - featured.length;
+  const shown = liveShowAll ? games : featured;
+
+  const sub = featured.length
+    ? `${featured.length} Top 25 / your team${featured.length === 1 ? '' : 's'}`
+    : 'No Top 25 or your teams playing';
+  const toggle = others
+    ? `<button class="live-toggle" onclick="liveShowAll=!liveShowAll;renderLiveStrip()">${
+        liveShowAll ? 'Top 25 only' : `+${others} more game${others === 1 ? '' : 's'}`}</button>`
+    : '';
+
+  // Keep horizontal scroll position across refreshes
+  const prevScroll = el.querySelector('.live-row')?.scrollLeft || 0;
+  el.innerHTML = `
+    <div class="live-head">
+      <span class="live-title">⚡ Live now</span>
+      <span class="live-sub">${sub}</span>
+      ${toggle}
+    </div>
+    ${shown.length ? `<div class="live-row">${shown.map(renderMini).join('')}</div>` : ''}`;
+  el.hidden = false;
+  const row = el.querySelector('.live-row');
+  if (row) row.scrollLeft = prevScroll;
+}
+
 // ─── MAIN LOAD ────────────────────────────────────────────────────────────────
 async function loadAll() {
+  loadLive();
   const grid = document.getElementById('grid');
   if (!selectedTeams.length) {
     grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🏀</div><p>Select your favorite teams below to get started</p></div>`;
@@ -2271,6 +2475,9 @@ function manualRefresh() {
 
 // ─── CATEGORY / TOP 25 ───────────────────────────────────────────────────────
 async function getCategoryTeams(catId) {
+  if (catId === 'live') {
+    return TEAM_LIST.filter(t => LIVE_IDS.has(String(t.id)));
+  }
   if (catId === 'top25') {
     const ids = await fetchTop25Ids();
     if (!ids || !ids.length) return null;
@@ -2323,14 +2530,14 @@ function renderChips() {
   }
   clearBtn.style.display = 'inline-block';
   container.innerHTML = selectedTeams.map((t, i) => `
-    <div class="chip" draggable="true" data-idx="${i}"
+    <div class="chip" draggable="true" data-idx="${i}" data-tid="${t.id}"
          ondragstart="dragStart(event,${i})"
          ondragover="dragOver(event,${i})"
          ondrop="dropOn(event,${i})"
          ondragend="dragEnd(event)">
       <span class="chip-drag-handle">⠿</span>
       <span class="chip-emoji">${t.emoji}</span>
-      <span class="chip-name">${t.short || t.display}</span>
+      <span class="chip-name">${t.short || t.display}${liveBolt(t)}</span>
       <span class="chip-remove" onclick="removeTeam('${t.display.replace(/'/g,"\\'")}')">✕</span>
     </div>`).join('');
 }
@@ -2369,12 +2576,12 @@ async function renderBrowser() {
     const sel = isSelected(t);
     const dis = maxReached && !sel;
     const hateClass = t.vibe === 'hate' ? 'hate-option' : '';
-    return `<div class="team-option ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''} ${hateClass}"
+    return `<div class="team-option ${sel ? 'selected' : ''} ${dis ? 'disabled' : ''} ${hateClass}" data-tid="${t.id}"
                  onclick="toggleTeam(TEAM_LIST.find(x=>x.display==='${t.display.replace(/'/g,"\\'")}'))">
       <div class="option-check">${sel ? '✓' : ''}</div>
       <span class="option-emoji">${t.emoji}</span>
       <div class="option-info">
-        <div class="option-name">${t.display}</div>
+        <div class="option-name">${t.display}${liveBolt(t)}</div>
         <div class="option-conf">${t.conf}</div>
       </div>
     </div>`;
@@ -2385,7 +2592,8 @@ function renderCategories() {
   const row   = document.getElementById('category-row');
   const label = document.getElementById('cat-active-label');
   const confCats = buildConferenceCategories();
-  const allCats  = [{ id: 'top25', label: '🏆 Top 25' }, ...confCats];
+  const liveCat  = (LIVE_IDS.size || activeCategory === 'live') ? [{ id: 'live', label: '⚡ Live' }] : [];
+  const allCats  = [...liveCat, { id: 'top25', label: '🏆 Top 25' }, ...confCats];
 
   row.innerHTML = allCats.map(c => {
     const isActive = activeCategory === c.id;
