@@ -845,60 +845,83 @@
     }
     .cat-active-label.visible { display: block; }
 
-    /* ── LIVE STRIP ── */
+    /* ── LIVE NOW DRAWER ── */
     .live-strip {
       width: 100%;
       max-width: 1080px;
       margin: -1rem 0 1.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
     }
     .live-strip[hidden] { display: none; }
-    .live-head {
-      display: flex; align-items: baseline; gap: 0.6rem;
-      margin: 0 0.2rem 0.55rem;
+    .live-bar {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      width: 100%;
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.7rem 0.9rem;
+      font-family: 'DM Sans', sans-serif;
     }
+    .live-bar:hover { background: rgba(255,255,255,0.02); }
     .live-title {
-      font-family: 'Anton', sans-serif;
+      font-family: 'Anton', sans-serif; white-space: nowrap;
       font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase;
       color: var(--live);
     }
-    .live-sub { font-size: 0.7rem; color: var(--text-dim); letter-spacing: 0.05em; }
-    .live-toggle {
-      margin-left: auto;
+    .live-count {
+      font-size: 0.65rem; font-weight: 500; color: #111;
+      background: var(--live); border-radius: 20px; padding: 0.05rem 0.45rem;
+    }
+    .live-sub {
+      flex: 1; min-width: 0;
+      font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.03em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .live-chev { color: #666; font-size: 0.8rem; transition: transform 0.2s; }
+    .live-strip.open .live-chev { transform: rotate(180deg); }
+    .live-body { display: none; padding: 0 0.9rem 0.8rem; }
+    .live-strip.open .live-body { display: block; }
+    .live-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.65rem; }
+    .live-tab {
       background: none; border: 1px solid #2a2a2a; color: #777;
       font-family: 'DM Sans', sans-serif; font-size: 0.65rem;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      padding: 0.2rem 0.65rem; border-radius: 20px; cursor: pointer;
+      letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
+      padding: 0.25rem 0.7rem; border-radius: 20px; cursor: pointer;
     }
-    .live-toggle:hover { border-color: #555; color: #aaa; }
-    .live-row {
-      display: flex; gap: 0.7rem;
-      overflow-x: auto; scroll-snap-type: x mandatory;
-      padding: 0.1rem 0.2rem 0.5rem;
-      scrollbar-width: thin;
+    .live-tab.active { border-color: var(--live); color: var(--live); }
+    .live-tab:disabled { opacity: 0.35; cursor: default; }
+    .live-grid {
+      display: grid; gap: 0.6rem;
+      grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
     }
+    .live-note { font-size: 0.72rem; color: var(--text-dim); padding: 0.1rem 0 0.5rem; }
+    .live-legend { font-size: 0.6rem; color: #444; letter-spacing: 0.04em; margin-top: 0.6rem; }
+    .live-legend b { color: var(--live); font-weight: 500; }
+    .live-legend i { color: #777; font-style: normal; }
     .mini {
-      flex: 0 0 auto; width: 178px;
-      scroll-snap-align: start;
-      background: var(--surface);
+      min-width: 0;
+      background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.6rem 0.75rem 0.55rem;
+      border-radius: 11px;
+      padding: 0.55rem 0.7rem 0.5rem;
       color: #ddd; text-decoration: none;
-      display: flex; flex-direction: column; gap: 0.28rem;
-      transition: border-color 0.2s, transform 0.2s;
+      display: flex; flex-direction: column; gap: 0.26rem;
+      transition: border-color 0.2s;
     }
-    .mini:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .mini:hover { border-color: rgba(255,255,255,0.2); }
     .mini.mine { border-color: rgba(251,191,36,0.55); box-shadow: 0 0 0 1px rgba(251,191,36,0.25); }
     .mini-team { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }
-    .mini-team img { width: 18px; height: 18px; object-fit: contain; }
-    .mini-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #bbb; }
-    .mini-rank { font-size: 0.62rem; color: var(--live); margin-right: 0.15rem; }
+    .mini-team img { width: 18px; height: 18px; object-fit: contain; flex: none; }
+    .mini-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #bbb; }
+    .mini-rank { font-size: 0.62rem; color: var(--live); margin-right: 0.2rem; }
+    .mini-rank.bpi { color: #6b6f78; }
     .mini-score { font-variant-numeric: tabular-nums; font-weight: 500; color: #888; }
     .mini-team.lead .mini-name, .mini-team.lead .mini-score { color: #fff; }
     .mini-foot {
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase;
-      color: var(--live); margin-top: 0.1rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 0.3rem;
+      font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--live); margin-top: 0.08rem; white-space: nowrap;
     }
     .mini-foot .dot {
       display: inline-block; width: 6px; height: 6px; border-radius: 50%;
@@ -907,7 +930,29 @@
     }
     @keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
     .mini-tag { color: var(--no); }
-    .live-empty { font-size: 0.75rem; color: var(--text-dim); padding: 0.2rem 0.2rem 0; }
+
+    /* ── PHONE LAYOUT: compact two-up team cards ── */
+    @media (max-width: 640px) {
+      body { padding: 1.6rem 0.75rem 2rem; }
+      header { margin-bottom: 1.8rem; }
+      .live-strip { margin-top: -0.6rem; }
+      .live-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+      .grid { grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+      .card { min-height: 236px; border-radius: 14px; }
+      .card-front, .card-back { padding: 0.85rem 0.85rem 0.8rem; gap: 0.42rem; border-radius: 14px; }
+      .card-back { overflow-y: auto; }
+      .team-emoji { font-size: 1.05rem; margin-bottom: 0.12rem; }
+      .team-name { font-size: 0.95rem; white-space: normal; letter-spacing: 0.04em; }
+      .team-sub { display: none; }
+      .answer { font-size: 2.6rem; }
+      .answer.tbd { font-size: 1.8rem; }
+      .stats-row { gap: 0.22rem; }
+      .front-game-label { font-size: 0.52rem; letter-spacing: 0.14em; }
+      .front-game-line { font-size: 0.7rem; line-height: 1.35; }
+      .front-badge { font-size: 0.6rem; margin-left: 0.15rem; }
+      .front-badge.up { font-size: 0.6rem; }
+      .card .hint { display: none; }
+    }
 
     /* ⚡ marker for teams playing right now */
     .live-bolt {
@@ -2305,11 +2350,14 @@ function renderError(team, idx) {
 }
 
 // ─── LIVE NOW ────────────────────────────────────────────────────────────────
-// One scoreboard call (all of Division I, today) feeds the live strip, the ⚡
-// markers in the team picker, and the ⚡ Live filter.
+// One scoreboard call (all of Division I, today) feeds the Live Now drawer,
+// the ⚡ markers in the team picker, and the ⚡ Live filter. Games outside the
+// Top 25 are ordered by ESPN's BPI (a KenPom-style power rating, free/public).
 let LIVE_IDS = new Set();
-let liveShowAll = false;
+let liveShowAll = null;          // null = auto (featured if any, else all)
 let lastLiveEvents = [];
+let BPI_RANK = new Map();        // team id -> BPI rank (1 = best)
+let bpiLoadedAt = 0;
 
 function liveBolt(t) {
   return LIVE_IDS.has(String(t.id)) ? '<span class="live-bolt" title="Playing now">⚡</span>' : '';
@@ -2319,12 +2367,55 @@ function escHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-async function loadLive() {
+async function loadBPI() {
+  if (Date.now() - bpiLoadedAt < 6 * 3600 * 1000) return; // refresh every 6h
   try {
     const r = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=400',
+      'https://site.web.api.espn.com/apis/fitt/v3/sports/basketball/mens-college-basketball/powerindex?region=us&lang=en&limit=400',
       { cache: 'no-store' }
     );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const names = data.categories?.find(c => c.name === 'bpi')?.names || [];
+    const rankIdx = Math.max(0, names.indexOf('bpirank'));
+    const map = new Map();
+    for (const t of data.teams || []) {
+      const rk = t.categories?.find(c => c.name === 'bpi')?.values?.[rankIdx];
+      if (t.team?.id && rk) map.set(String(t.team.id), rk);
+    }
+    if (map.size) { BPI_RANK = map; bpiLoadedAt = Date.now(); }
+  } catch (e) {
+    console.warn('BPI fetch failed:', e);
+  }
+}
+
+function liveDrawerOpen() {
+  try {
+    const v = localStorage.getItem('dww_live_open');
+    if (v !== null) return v === '1';
+  } catch {}
+  return null; // never chosen
+}
+
+function toggleLiveDrawer() {
+  const el = document.getElementById('live-strip');
+  const open = !el.classList.contains('open');
+  el.classList.toggle('open', open);
+  try { localStorage.setItem('dww_live_open', open ? '1' : '0'); } catch {}
+}
+
+function setLiveTab(all) {
+  liveShowAll = all;
+  renderLiveStrip();
+}
+
+async function loadLive() {
+  try {
+    const [r] = await Promise.all([
+      fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=400',
+        { cache: 'no-store' }),
+      loadBPI(),
+    ]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     lastLiveEvents = (data.events || []).filter(e => e.status?.type?.state === 'in');
@@ -2361,25 +2452,30 @@ function liveGameInfo(ev) {
     .slice()
     .sort((a, b) => (a.homeAway === 'away' ? -1 : 1)) // away on top
     .map(c => {
+      const id = String(c.team?.id);
       const rank = c.curatedRank?.current;
       return {
-        id: String(c.team?.id),
+        id,
         name: c.team?.shortDisplayName || c.team?.abbreviation || '?',
         logo: c.team?.logo || '',
         score: parseInt(c.score, 10) || 0,
         rank: rank && rank <= 25 ? rank : null,
+        bpi: BPI_RANK.get(id) || null,
       };
     });
   const ranks = sides.map(s => s.rank).filter(Boolean);
   const mine = sides.some(s => mineIds.has(s.id));
   const margin = sides.length === 2 ? Math.abs(sides[0].score - sides[1].score) : 99;
   const late = (ev.status?.period || 0) >= 2;
+  const close = late && margin <= 5;
+  // Matchup quality: average BPI rank of both teams (non-D1 opponents count
+  // as 400). A close second-half game moves up as if 40 spots better.
+  const avgBpi = sides.reduce((sum, s) => sum + (s.bpi || 400), 0) / Math.max(1, sides.length);
   return {
-    ev, sides, mine,
+    ev, sides, mine, margin, close,
     ranked: ranks.length > 0,
     bestRank: ranks.length ? Math.min(...ranks) : 99,
-    margin,
-    close: late && margin <= 5,
+    quality: avgBpi - (close ? 40 : 0),
   };
 }
 
@@ -2387,12 +2483,16 @@ function renderMini(g) {
   const lead = g.sides[0].score === g.sides[1]?.score ? -1 : (g.sides[0].score > g.sides[1]?.score ? 0 : 1);
   const link = g.ev.links?.find(l => (l.rel || []).includes('summary'))?.href ||
     `https://www.espn.com/mens-college-basketball/game/_/gameId/${g.ev.id}`;
-  const rows = g.sides.map((s, i) => `
+  const rows = g.sides.map((s, i) => {
+    const badge = s.rank ? `<span class="mini-rank" title="AP rank">${s.rank}</span>`
+                : s.bpi  ? `<span class="mini-rank bpi" title="ESPN BPI rank">${s.bpi}</span>` : '';
+    return `
     <div class="mini-team ${i === lead ? 'lead' : ''}">
       ${s.logo ? `<img src="${escHtml(s.logo)}" alt="" loading="lazy">` : ''}
-      <span class="mini-name">${s.rank ? `<span class="mini-rank">${s.rank}</span>` : ''}${escHtml(s.name)}</span>
+      <span class="mini-name">${badge}${escHtml(s.name)}</span>
       <span class="mini-score">${s.score}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
   const tag = g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
   return `<a class="mini ${g.mine ? 'mine' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
@@ -2406,33 +2506,49 @@ function renderLiveStrip() {
   const games = lastLiveEvents.map(liveGameInfo);
   if (!games.length) { el.hidden = true; el.innerHTML = ''; return; }
 
-  // Your teams first, then ranked games by best rank, then the closest games
-  games.sort((a, b) =>
-    (b.mine - a.mine) || (a.bestRank - b.bestRank) || (a.margin - b.margin));
-  const featured = games.filter(g => g.mine || g.ranked);
-  const others = games.length - featured.length;
-  const shown = liveShowAll ? games : featured;
+  // Featured: your teams first, then by best AP rank, then closest
+  const featured = games.filter(g => g.mine || g.ranked)
+    .sort((a, b) => (b.mine - a.mine) || (a.bestRank - b.bestRank) || (a.margin - b.margin));
+  // Everything else: best BPI matchup first
+  const rest = games.filter(g => !(g.mine || g.ranked))
+    .sort((a, b) => (a.quality - b.quality) || (a.margin - b.margin));
 
-  const sub = featured.length
-    ? `${featured.length} Top 25 / your team${featured.length === 1 ? '' : 's'}`
-    : 'No Top 25 or your teams playing';
-  const toggle = others
-    ? `<button class="live-toggle" onclick="liveShowAll=!liveShowAll;renderLiveStrip()">${
-        liveShowAll ? 'Top 25 only' : `+${others} more game${others === 1 ? '' : 's'}`}</button>`
-    : '';
+  const showAll = liveShowAll === null ? !featured.length : (liveShowAll || !featured.length);
+  const shown = showAll ? [...featured, ...rest] : featured;
 
-  // Keep horizontal scroll position across refreshes
-  const prevScroll = el.querySelector('.live-row')?.scrollLeft || 0;
+  const mineGame = featured.find(g => g.mine);
+  let sub;
+  if (mineGame) {
+    const [x, y] = mineGame.sides;
+    sub = `${x.name} ${x.score}–${y.score} ${y.name} · ${mineGame.ev.status?.type?.shortDetail || ''}`;
+  } else if (featured.length) {
+    sub = `${featured.length} Top 25 · ${games.length} total`;
+  } else {
+    const best = rest[0];
+    sub = best ? `Best: ${best.sides.map(s => s.name).join(' vs ')}` : '';
+  }
+
+  const pref = liveDrawerOpen();
+  const open = pref === null ? featured.length > 0 : pref;
+
+  el.className = 'live-strip' + (open ? ' open' : '');
   el.innerHTML = `
-    <div class="live-head">
+    <button class="live-bar" onclick="toggleLiveDrawer()" aria-label="Show live games">
       <span class="live-title">⚡ Live now</span>
-      <span class="live-sub">${sub}</span>
-      ${toggle}
-    </div>
-    ${shown.length ? `<div class="live-row">${shown.map(renderMini).join('')}</div>` : ''}`;
+      <span class="live-count">${games.length}</span>
+      <span class="live-sub">${escHtml(sub)}</span>
+      <span class="live-chev">▾</span>
+    </button>
+    <div class="live-body">
+      <div class="live-tabs">
+        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>Top 25 &amp; yours (${featured.length})</button>
+        <button class="live-tab ${showAll ? 'active' : ''}" onclick="setLiveTab(true)">All live (${games.length})</button>
+      </div>
+      ${featured.length ? '' : '<div class="live-note">No Top 25 or your teams playing. Best matchups first.</div>'}
+      <div class="live-grid">${shown.map(renderMini).join('')}</div>
+      <div class="live-legend"><b>Gold</b> = AP rank · <i>gray</i> = ESPN BPI rank${BPI_RANK.size ? '' : ' (loading)'}</div>
+    </div>`;
   el.hidden = false;
-  const row = el.querySelector('.live-row');
-  if (row) row.scrollLeft = prevScroll;
 }
 
 // ─── MAIN LOAD ────────────────────────────────────────────────────────────────
