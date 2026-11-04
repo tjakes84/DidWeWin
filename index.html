@@ -1973,10 +1973,13 @@ async function fetchTeam(team) {
   const recordStr = data.team?.recordSummary || totalRec?.summary || '';
 
   let confRecordStr = '';
+  // Use the conference group ESPN reports for this team (the hardcoded
+  // CONF_INFO ids were mostly wrong); fall back to CONF_INFO if missing.
+  const confGroupId = data.team?.groups?.id || team.confId;
   try {
-    if (team.confId) {
+    if (confGroupId) {
       const confRes = await fetch(
-        `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/${seasonYear}/types/2/groups/${team.confId}/teams/${team.id}/records/9`,
+        `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/seasons/${seasonYear}/types/2/groups/${confGroupId}/teams/${team.id}/records/9`,
         { cache: 'no-store' }
       );
       if (confRes.ok) {
