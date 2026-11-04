@@ -1043,7 +1043,7 @@
 
   <!-- Celebrity Packs -->
   <div class="celeb-section">
-    <div class="selected-label">Load a celebrity's picks</div>
+    <div class="selected-label">Load a lineup</div>
     <div class="celeb-row" id="celeb-row"></div>
   </div>
 
@@ -1965,6 +1965,11 @@ function buildConferenceCategories() {
 // ─── CELEBRITY PACKS ──────────────────────────────────────────────────────────
 const CELEB_PACKS = [
   {
+    name: 'Default', fullName: 'Did We Win', avatar: '🏀', isDefault: true,
+    title: 'Default lineup (shown to first-time visitors)',
+    teams: ['North Carolina', 'Dook', 'Illinois', 'Michigan', 'Wisconsin', 'Indiana'],
+  },
+  {
     name: 'MJ', fullName: 'Michael Jordan', avatar: '🐐',
     teams: ['North Carolina', 'Illinois', 'NC State', 'Marquette', 'Georgetown', 'Kansas'],
   },
@@ -2009,7 +2014,7 @@ function renderCelebRow() {
   const row = document.getElementById('celeb-row');
   row.innerHTML = CELEB_PACKS.map(pack => `
     <div class="celeb-chip" onclick="loadCelebPack(CELEB_PACKS.find(p=>p.name==='${pack.name}'))"
-         title="${pack.fullName}'s picks">
+         title="${pack.title || pack.fullName + "'s picks"}">
       <span class="celeb-avatar">${pack.avatar}</span>
       <span class="celeb-name">${pack.name}</span>
     </div>`).join('');
@@ -2866,8 +2871,13 @@ window.debugDWW = function() {
   // Fetch Top 25 (single API call, fast)
   await fetchTop25Ids();
 
-  // Resolve saved teams and render immediately
-  selectedTeams = resolveFromSaved(savedNames);
+  // Resolve saved teams and render immediately. First-time visitors (nothing
+  // saved yet) get the default lineup; it isn't saved until they change it.
+  let firstVisit = false;
+  try { firstVisit = localStorage.getItem(STORAGE_KEY) === null; } catch {}
+  selectedTeams = firstVisit
+    ? CELEB_PACKS.find(p => p.isDefault).teams.map(findTeamByName).filter(Boolean).slice(0, 6)
+    : resolveFromSaved(savedNames);
   window.selectedTeams = selectedTeams;
   await renderSelector();
   await loadAll();
