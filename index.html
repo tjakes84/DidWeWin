@@ -1001,6 +1001,22 @@
       .sched-opp-rank { font-size: 0.6rem; }
     }
 
+    /* League switch */
+    .league-tabs { display: inline-flex; gap: 0.3rem; margin-top: 0.9rem; padding: 0.2rem;
+      border: 1px solid #2a2a2a; border-radius: 20px; }
+    .league-tabs a { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #666; text-decoration: none; padding: 0.25rem 0.85rem; border-radius: 16px; }
+    .league-tabs a.active { background: var(--live); color: #111; font-weight: 500; }
+
+    /* AP rank next to team names in the picker */
+    .option-rank { font-family: 'Anton', sans-serif; font-size: 0.7rem; color: var(--live);
+      margin-right: 0.3rem; letter-spacing: 0.03em; }
+
+    /* Empty state: lineups right at the top */
+    .empty-state .empty-packs { justify-content: center; margin: 1.1rem 0 0.9rem; }
+    .empty-browse { font-size: 0.75rem; color: #888; text-decoration: none; letter-spacing: 0.05em; }
+    .empty-browse:hover { color: #bbb; }
+
     /* ⚡ marker for teams playing right now */
     .live-bolt {
       margin-left: 0.3rem; font-size: 0.8em;
@@ -1013,7 +1029,11 @@
 
 <header>
   <h1>Did We <em>Win?</em></h1>
-  <p class="subtitle">Men's Basketball · Live Scores</p>
+  <nav class="league-tabs">
+    <a href="./" id="tab-ncaam">College</a>
+    <a href="./?league=nba" id="tab-nba">NBA</a>
+  </nav>
+  <p class="subtitle" id="subtitle">Men's Basketball · Live Scores</p>
   <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
 </header>
 
@@ -1062,6 +1082,47 @@
 <footer>Data via ESPN · hover or tap a card to see the full schedule</footer>
 
 <script>
+// ─── LEAGUE ──────────────────────────────────────────────────────────────────
+// didwewin.net = men's college basketball; didwewin.net/?league=nba = NBA.
+const LEAGUE   = /(^|[?&])league=nba\b/i.test(location.search) ? 'nba' : 'ncaam';
+const IS_NBA   = LEAGUE === 'nba';
+const ESPN_PATH = IS_NBA ? 'nba' : 'mens-college-basketball';
+const API = `https://site.api.espn.com/apis/site/v2/sports/basketball/${ESPN_PATH}`;
+
+// NBA teams (ESPN ids). div = division.
+const NBA_TEAMS = [
+  { id:'1',  loc:'Atlanta',       name:'Hawks',         abbr:'ATL',  conf:'East', div:'Southeast', emoji:'🦅' },
+  { id:'2',  loc:'Boston',        name:'Celtics',       abbr:'BOS',  conf:'East', div:'Atlantic',  emoji:'☘️' },
+  { id:'17', loc:'Brooklyn',      name:'Nets',          abbr:'BKN',  conf:'East', div:'Atlantic',  emoji:'🕸️' },
+  { id:'30', loc:'Charlotte',     name:'Hornets',       abbr:'CHA',  conf:'East', div:'Southeast', emoji:'🐝' },
+  { id:'4',  loc:'Chicago',       name:'Bulls',         abbr:'CHI',  conf:'East', div:'Central',   emoji:'🐂' },
+  { id:'5',  loc:'Cleveland',     name:'Cavaliers',     abbr:'CLE',  conf:'East', div:'Central',   emoji:'⚔️' },
+  { id:'6',  loc:'Dallas',        name:'Mavericks',     abbr:'DAL',  conf:'West', div:'Southwest', emoji:'🐴' },
+  { id:'7',  loc:'Denver',        name:'Nuggets',       abbr:'DEN',  conf:'West', div:'Northwest', emoji:'⛏️' },
+  { id:'8',  loc:'Detroit',       name:'Pistons',       abbr:'DET',  conf:'East', div:'Central',   emoji:'🔧' },
+  { id:'9',  loc:'Golden State',  name:'Warriors',      abbr:'GS',   conf:'West', div:'Pacific',   emoji:'🌉' },
+  { id:'10', loc:'Houston',       name:'Rockets',       abbr:'HOU',  conf:'West', div:'Southwest', emoji:'🚀' },
+  { id:'11', loc:'Indiana',       name:'Pacers',        abbr:'IND',  conf:'East', div:'Central',   emoji:'🏎️' },
+  { id:'12', loc:'LA',            name:'Clippers',      abbr:'LAC',  conf:'West', div:'Pacific',   emoji:'⛵' },
+  { id:'13', loc:'Los Angeles',   name:'Lakers',        abbr:'LAL',  conf:'West', div:'Pacific',   emoji:'💜' },
+  { id:'29', loc:'Memphis',       name:'Grizzlies',     abbr:'MEM',  conf:'West', div:'Southwest', emoji:'🐻' },
+  { id:'14', loc:'Miami',         name:'Heat',          abbr:'MIA',  conf:'East', div:'Southeast', emoji:'🔥' },
+  { id:'15', loc:'Milwaukee',     name:'Bucks',         abbr:'MIL',  conf:'East', div:'Central',   emoji:'🦌' },
+  { id:'16', loc:'Minnesota',     name:'Timberwolves',  abbr:'MIN',  conf:'West', div:'Northwest', emoji:'🐺' },
+  { id:'3',  loc:'New Orleans',   name:'Pelicans',      abbr:'NO',   conf:'West', div:'Southwest', emoji:'⚜️' },
+  { id:'18', loc:'New York',      name:'Knicks',        abbr:'NY',   conf:'East', div:'Atlantic',  emoji:'🗽' },
+  { id:'25', loc:'Oklahoma City', name:'Thunder',       abbr:'OKC',  conf:'West', div:'Northwest', emoji:'🌩️' },
+  { id:'19', loc:'Orlando',       name:'Magic',         abbr:'ORL',  conf:'East', div:'Southeast', emoji:'✨' },
+  { id:'20', loc:'Philadelphia',  name:'76ers',         abbr:'PHI',  conf:'East', div:'Atlantic',  emoji:'🔔' },
+  { id:'21', loc:'Phoenix',       name:'Suns',          abbr:'PHX',  conf:'West', div:'Pacific',   emoji:'☀️' },
+  { id:'22', loc:'Portland',      name:'Trail Blazers', abbr:'POR',  conf:'West', div:'Northwest', emoji:'🌲' },
+  { id:'23', loc:'Sacramento',    name:'Kings',         abbr:'SAC',  conf:'West', div:'Pacific',   emoji:'👑' },
+  { id:'24', loc:'San Antonio',   name:'Spurs',         abbr:'SA',   conf:'West', div:'Southwest', emoji:'🤠' },
+  { id:'28', loc:'Toronto',       name:'Raptors',       abbr:'TOR',  conf:'East', div:'Atlantic',  emoji:'🦖' },
+  { id:'26', loc:'Utah',          name:'Jazz',          abbr:'UTAH', conf:'West', div:'Northwest', emoji:'🎷' },
+  { id:'27', loc:'Washington',    name:'Wizards',       abbr:'WSH',  conf:'East', div:'Southeast', emoji:'🧙' },
+];
+
 // ─── TEAM METADATA OVERLAY ────────────────────────────────────────────────────
 // IDs come entirely from ESPN's API at boot — we NEVER hardcode them.
 // This map provides display overrides, emojis, vibes, and search aliases,
@@ -1138,7 +1199,7 @@ const TEAM_META = {
   'Georgia':          { emoji: '🐾' },
   'Kentucky':         { emoji: '🐱' },
   'LSU':              { emoji: '🐯' },
-  'Mississippi':      { display: 'Ole Miss',       short: 'Ole Miss',   emoji: '🐻' },
+  "Ole Miss":      { display: 'Ole Miss',       short: 'Ole Miss',   emoji: '🐻' },
   'Mississippi State':{ short: 'Miss State',       emoji: '🐶' },
   'Missouri':         { emoji: '🐯' },
   'Oklahoma':         { emoji: '🏹' },
@@ -1149,7 +1210,7 @@ const TEAM_META = {
 
   // ── Big East ──
   'Butler':           { emoji: '🐶' },
-  'Connecticut':      { display: 'UConn',          short: 'UConn',      emoji: '🐕' },
+  "UConn":      { display: 'UConn',          short: 'UConn',      emoji: '🐕' },
   'Creighton':        { emoji: '🔵' },
   'DePaul':           { emoji: '💙' },
   'Georgetown':       { emoji: '🐺' },
@@ -1218,7 +1279,7 @@ const TEAM_META = {
   'UTSA':             { emoji: '🐦' },
   'Western Kentucky': { short: 'WKU',              emoji: '🔴' },
   'Wichita State':    { emoji: '🌾' },
-  'FIU':              { emoji: '🐾' },
+  "Florida International":              { emoji: '🐾' },
 
   // ── Missouri Valley ──
   'Bradley':          { emoji: '🐹' },
@@ -1248,19 +1309,19 @@ const TEAM_META = {
   'Western Michigan': { short: 'Western Mich',     emoji: '🤙' },
 
   // ── Sun Belt ──
-  'Appalachian State':{ short: 'App State',        emoji: '⛰️' },
+  "App State":{ short: 'App State',        emoji: '⛰️' },
   'Arkansas State':   { short: 'Ark State',        emoji: '🐺' },
   'Coastal Carolina': { short: 'Coastal Car',      emoji: '⚓' },
   'Georgia State':    { emoji: '🔵' },
   'James Madison':    { short: 'JMU',              emoji: '🟣' },
   'Louisiana':        { emoji: '⚜️' },
-  'Louisiana Monroe': { short: 'ULM',              emoji: '🔴' },
+  "UL Monroe": { short: 'ULM',              emoji: '🔴' },
   'Marshall':         { emoji: '🔢' },
   'Old Dominion':     { emoji: '🦁' },
   'South Alabama':    { emoji: '🦬' },
   'Texas State':      { emoji: '🐱' },
   'Troy':             { emoji: '🐴' },
-  'Arkansas-Little Rock':{ short: 'UALR',          emoji: '🔴' },
+  "Little Rock":{ short: 'UALR',          emoji: '🔴' },
   'Southern Miss':    { emoji: '🦅' },
 
   // ── ASUN ──
@@ -1273,7 +1334,7 @@ const TEAM_META = {
   'Lipscomb':         { emoji: '🦬' },
   'North Alabama':    { emoji: '🦁' },
   'North Florida':    { emoji: '🐊' },
-  'Queens':           { emoji: '👑' },
+  "Queens University":           { emoji: '👑' },
   'Jacksonville State':{ short: 'Jax State',       emoji: '🐓' },
 
   // ── CAA ──
@@ -1285,7 +1346,7 @@ const TEAM_META = {
   'Hampton':          { emoji: '🐾' },
   'Hofstra':          { emoji: '🦁' },
   'Monmouth':         { emoji: '🦅' },
-  'NC A&T':           { emoji: '🐊' },
+  "North Carolina A&T":           { emoji: '🐊' },
   'Northeastern':     { emoji: '🐾' },
   'Stony Brook':      { emoji: '🐺' },
   'Towson':           { emoji: '🐯' },
@@ -1293,7 +1354,7 @@ const TEAM_META = {
   'William & Mary':   { short: 'W&M',              emoji: '👑' },
 
   // ── Patriot ──
-  'American':         { emoji: '🦅' },
+  "American University":         { emoji: '🦅' },
   'Army':             { emoji: '🎖️' },
   'Boston University':{ short: 'BU',               emoji: '🐾' },
   'Bucknell':         { emoji: '🦬' },
@@ -1309,7 +1370,7 @@ const TEAM_META = {
   'Cornell':          { emoji: '🐻' },
   'Dartmouth':        { emoji: '💚' },
   'Harvard':          { emoji: '📚' },
-  'Penn':             { emoji: '🔴' },
+  "Pennsylvania":             { emoji: '🔴' },
   'Princeton':        { emoji: '🐯' },
   'Yale':             { emoji: '🐶' },
 
@@ -1327,7 +1388,7 @@ const TEAM_META = {
   // ── Horizon ──
   'Cleveland State':  { short: 'Cleveland St',     emoji: '⚔️' },
   'Detroit Mercy':    { short: 'Detroit',          emoji: '⚙️' },
-  'IUPUI':            { emoji: '🔵' },
+  "IU Indianapolis":            { emoji: '🔵' },
   'Milwaukee':        { emoji: '🦅' },
   'Northern Kentucky':{ short: 'NKU',              emoji: '🏹' },
   'Oakland':          { emoji: '🦌' },
@@ -1373,7 +1434,7 @@ const TEAM_META = {
   'Cal State Bakersfield':{ short: 'CSUB',         emoji: '🐕' },
   'Cal State Fullerton':{ short: 'CS Fullerton',   emoji: '🐘' },
   'Cal State Northridge':{ short: 'CSUN',          emoji: '🏔️' },
-  'Hawaii':           { short: 'Hawaiʻi',          emoji: '🌺' },
+  "Hawai'i":           { short: 'Hawaiʻi',          emoji: '🌺' },
   'Long Beach State': { short: 'Long Beach',       emoji: '🌊' },
   'UC Davis':         { emoji: '🐄' },
   'UC Irvine':        { emoji: '🐜' },
@@ -1387,7 +1448,7 @@ const TEAM_META = {
   'Lamar':            { emoji: '🔴' },
   'New Mexico State': { short: 'NMSU',             emoji: '🌵' },
   'Sam Houston':      { emoji: '🤠' },
-  'Seattle':          { emoji: '☕' },
+  "Seattle U":          { emoji: '☕' },
   'Stephen F. Austin':{ short: 'SFA',              emoji: '🌲' },
   'Tarleton State':   { short: 'Tarleton',         emoji: '🤠' },
   'Texas A&M-Corpus Christi':{ short: 'TAMUCC',   emoji: '🌊' },
@@ -1401,7 +1462,7 @@ const TEAM_META = {
   'SIU Edwardsville': { short: 'SIUe',             emoji: '🟠' },
   'Southeast Missouri State':{ short: 'SEMO',      emoji: '🟡' },
   'Southern Indiana': { emoji: '🦅' },
-  'Tennessee Martin': { short: 'UT Martin',        emoji: '🌀' },
+  "UT Martin": { short: 'UT Martin',        emoji: '🌀' },
   'Tennessee State':  { short: 'Tenn State',       emoji: '🐯' },
   'Tennessee Tech':   { short: 'Tenn Tech',        emoji: '🦅' },
 
@@ -1415,7 +1476,7 @@ const TEAM_META = {
   'Western Illinois': { emoji: '🏹' },
 
   // ── America East ──
-  'Albany':           { emoji: '🐺' },
+  "UAlbany":           { emoji: '🐺' },
   'Bryant':           { emoji: '🐶' },
   'Maine':            { emoji: '🦞' },
   'New Hampshire':    { emoji: '🌲' },
@@ -1426,7 +1487,7 @@ const TEAM_META = {
 
   // ── NEC ──
   'Central Connecticut':{ short: 'Cent Conn',      emoji: '🔵' },
-  'LIU':              { emoji: '🦁' },
+  "Long Island University":              { emoji: '🦁' },
   'Merrimack':        { emoji: '🟡' },
   'Sacred Heart':     { emoji: '🤍' },
   'Saint Francis':    { short: 'St Francis',       emoji: '🟦' },
@@ -1438,7 +1499,7 @@ const TEAM_META = {
   'Bethune-Cookman':  { short: 'B-Cookman',        emoji: '🐾' },
   'Florida A&M':      { short: 'FAMU',             emoji: '🐍' },
   'Grambling':        { emoji: '🐯' },
-  'Grambling State':  { short: 'Grambling',        emoji: '🐯' },
+  "Grambling":  { short: 'Grambling',        emoji: '🐯' },
   'Houston Christian':{ short: 'HCU',              emoji: '🐝' },
   'Jackson State':    { short: 'Jackson St',       emoji: '🐯' },
   'Mississippi Valley State':{ short: 'Miss Valley',emoji: '🐶' },
@@ -1459,7 +1520,7 @@ const TEAM_META = {
   // ── Misc ──
   'McNeese':          { emoji: '🤠' },
   'Nicholls':         { emoji: '🐊' },
-  'Southeastern Louisiana':{ short: 'SE La',       emoji: '🦅' },
+  "SE Louisiana":{ short: 'SE La',       emoji: '🦅' },
   'North Carolina A&T':{ short: 'NC A&T',          emoji: '🐊' },
 };
 
@@ -1472,420 +1533,427 @@ var selectedTeams = [];
 
 // Build TEAM_LIST from ESPN's canonical teams endpoint.
 // IDs are NEVER hardcoded — they come directly from ESPN.
-// ESPN conference group IDs for men's college basketball (2025-26 season)
+// ESPN conference group IDs for men's college basketball (2026-27 season, from ESPN standings)
 // Fetching by conference gives us accurate conf membership + team IDs in one shot.
 // ─── VERIFIED TEAM DATABASE ──────────────────────────────────────────────────
 // ESPN IDs verified directly from ESPN's API. Conf assignments are authoritative.
 // To add a team: find its ESPN ID from espn.com/mens-college-basketball/team/_/id/XXX
 const TEAMS_DB = [
-  // ACC
-  { id:'103', loc:'Boston College',   conf:'ACC' },
-  { id:'234', loc:'California',       conf:'ACC' },
-  { id:'228', loc:'Clemson',          conf:'ACC' },
-  { id:'150', loc:'Duke',             conf:'ACC' },
-  { id:'65',  loc:'Florida State',    conf:'ACC' },
-  { id:'61',  loc:'Georgia Tech',     conf:'ACC' },
-  { id:'97',  loc:'Louisville',       conf:'ACC' },
-  { id:'87',  loc:'Miami',            conf:'ACC' },
-  { id:'153', loc:'North Carolina',   conf:'ACC' },
-  { id:'152', loc:'NC State',         conf:'ACC' },
-  { id:'59',  loc:'Notre Dame',       conf:'ACC' },
-  { id:'221', loc:'Pittsburgh',       conf:'ACC' },
-  { id:'21',  loc:'SMU',             conf:'ACC' },
-  { id:'2641',loc:'Stanford',         conf:'ACC' },
-  { id:'183', loc:'Syracuse',         conf:'ACC' },
-  { id:'2765',loc:'Virginia',         conf:'ACC' },
-  { id:'2766',loc:'Virginia Tech',    conf:'ACC' },
-  { id:'276', loc:'Wake Forest',      conf:'ACC' },
-  // Big Ten
-  { id:'356', loc:'Illinois',         conf:'B10' },
-  { id:'360', loc:'Indiana',          conf:'B10' },
-  { id:'2439',loc:'Iowa',             conf:'B10' },  // ESPN uses 2439 not 366
-  { id:'269', loc:'Maryland',         conf:'B10' },
-  { id:'130', loc:'Michigan',         conf:'B10' },
-  { id:'127', loc:'Michigan State',   conf:'B10' },
-  { id:'135', loc:'Minnesota',        conf:'B10' },
-  { id:'158', loc:'Nebraska',         conf:'B10' },
-  { id:'147', loc:'Northwestern',     conf:'B10' },
-  { id:'194', loc:'Ohio State',       conf:'B10' },
-  { id:'2483',loc:'Oregon',           conf:'B10' },  // joined B10 2024
-  { id:'213', loc:'Penn State',       conf:'B10' },
-  { id:'2509',loc:'Purdue',           conf:'B10' },
-  { id:'164', loc:'Rutgers',          conf:'B10' },
-  { id:'26',  loc:'UCLA',             conf:'B10' },
-  { id:'30',  loc:'USC',              conf:'B10' },
-  { id:'264', loc:'Washington',       conf:'B10' },
-  { id:'275', loc:'Wisconsin',        conf:'B10' },
-  // Big 12
-  { id:'12',  loc:'Arizona',          conf:'B12' },
-  { id:'9',   loc:'Arizona State',    conf:'B12' },
-  { id:'239', loc:'Baylor',           conf:'B12' },
-  { id:'252', loc:'BYU',              conf:'B12' },
-  { id:'2132',loc:'Cincinnati',       conf:'B12' },
-  { id:'38',  loc:'Colorado',         conf:'B12' },
-  { id:'248', loc:'Houston',          conf:'B12' },
-  { id:'66',  loc:'Iowa State',       conf:'B12' },
-  { id:'2305',loc:'Kansas',           conf:'B12' },
-  { id:'2411',loc:'Kansas State',     conf:'B12' },
-  { id:'201', loc:'Oklahoma State',   conf:'B12' },
-  { id:'2628',loc:'TCU',              conf:'B12' },
-  { id:'251', loc:'Texas',            conf:'B12' },
-  { id:'2649',loc:'Texas Tech',       conf:'B12' },
-  { id:'2116',loc:'UCF',              conf:'B12' },
-  { id:'254', loc:'Utah',             conf:'B12' },
-  { id:'277', loc:'West Virginia',    conf:'B12' },
-  // SEC
-  { id:'333', loc:'Alabama',          conf:'SEC' },
-  { id:'8',   loc:'Arkansas',         conf:'SEC' },
-  { id:'2',   loc:'Auburn',           conf:'SEC' },
-  { id:'57',  loc:'Florida',          conf:'SEC' },
-  { id:'61',  loc:'Georgia',          conf:'SEC' },
-  { id:'96',  loc:'Kentucky',         conf:'SEC' },
-  { id:'99',  loc:'LSU',              conf:'SEC' },
-  { id:'145', loc:'Mississippi',      conf:'SEC' },
-  { id:'344', loc:'Mississippi State',conf:'SEC' },
-  { id:'142', loc:'Missouri',         conf:'SEC' },
-  { id:'201', loc:'Oklahoma',         conf:'SEC' },
-  { id:'2579',loc:'South Carolina',   conf:'SEC' },
-  { id:'2633',loc:'Tennessee',        conf:'SEC' },
-  { id:'245', loc:'Texas A&M',        conf:'SEC' },
-  { id:'238', loc:'Vanderbilt',       conf:'SEC' },
-  // Big East
-  { id:'2350',loc:'Butler',           conf:'BE' },
-  { id:'41',  loc:'Connecticut',      conf:'BE' },
-  { id:'156', loc:'Creighton',        conf:'BE' },
-  { id:'305', loc:'DePaul',           conf:'BE' },
-  { id:'43',  loc:'Georgetown',       conf:'BE' },
-  { id:'269', loc:'Marquette',        conf:'BE' },
-  { id:'2507',loc:'Providence',       conf:'BE' },
-  { id:'2550',loc:'Seton Hall',       conf:'BE' },
-  { id:'2599',loc:"St. John's",       conf:'BE' },
-  { id:'222', loc:'Villanova',        conf:'BE' },
-  { id:'2752',loc:'Xavier',           conf:'BE' },
-  // Atlantic 10
-  { id:'2305',loc:'Dayton',           conf:'A10' },
-  { id:'2166',loc:'Davidson',         conf:'A10' },
-  { id:'2210',loc:'Duquesne',         conf:'A10' },
-  { id:'2581',loc:'Fordham',          conf:'A10' },
-  { id:'2193',loc:'George Mason',     conf:'A10' },
-  { id:'2567',loc:'George Washington',conf:'A10' },
-  { id:'2350',loc:'La Salle',         conf:'A10' },
-  { id:'2430',loc:'Loyola Chicago',   conf:'A10' },
-  { id:'113', loc:'Massachusetts',    conf:'A10' },
-  { id:'227', loc:'Rhode Island',     conf:'A10' },
-  { id:'257', loc:'Richmond',         conf:'A10' },
-  { id:'139', loc:'Saint Louis',      conf:'A10' },
-  { id:'2510',loc:"Saint Joseph's",   conf:'A10' },
-  { id:'179', loc:'St. Bonaventure',  conf:'A10' },
-  { id:'2670',loc:'VCU',              conf:'A10' },
-  // WCC
-  { id:'2309',loc:'Gonzaga',          conf:'WCC' },
-  { id:'2436',loc:'Loyola Marymount', conf:'WCC' },
-  { id:'2511',loc:'Pacific',          conf:'WCC' },
-  { id:'2535',loc:'Pepperdine',       conf:'WCC' },
-  { id:'2530',loc:'Portland',         conf:'WCC' },
-  { id:'2562',loc:"Saint Mary's",     conf:'WCC' },
-  { id:'301', loc:'San Diego',        conf:'WCC' },
-  { id:'239', loc:'San Francisco',    conf:'WCC' },
-  { id:'2580',loc:'Santa Clara',      conf:'WCC' },
-  // Mountain West
-  { id:'2',   loc:'Air Force',        conf:'MW' },
-  { id:'68',  loc:'Boise State',      conf:'MW' },
-  { id:'36',  loc:'Colorado State',   conf:'MW' },
-  { id:'278', loc:'Fresno State',     conf:'MW' },
-  { id:'2450',loc:'Nevada',           conf:'MW' },
-  { id:'167', loc:'New Mexico',       conf:'MW' },
-  { id:'21',  loc:'San Diego State',  conf:'MW' },
-  { id:'2439',loc:'UNLV',             conf:'MW' },
-  { id:'2724',loc:'Utah State',       conf:'MW' },
-  { id:'2751',loc:'Wyoming',          conf:'MW' },
-  // American Athletic
-  { id:'2429',loc:'Charlotte',        conf:'AAC' },
-  { id:'151', loc:'East Carolina',    conf:'AAC' },
-  { id:'2754',loc:'Florida Atlantic', conf:'AAC' },
-  { id:'2335',loc:'Louisiana Tech',   conf:'AAC' },
-  { id:'235', loc:'Memphis',          conf:'AAC' },
-  { id:'2471',loc:'Middle Tennessee', conf:'AAC' },
-  { id:'2459',loc:'North Texas',      conf:'AAC' },
-  { id:'242', loc:'Rice',             conf:'AAC' },
-  { id:'58',  loc:'South Florida',    conf:'AAC' },
-  { id:'218', loc:'Temple',           conf:'AAC' },
-  { id:'2534',loc:'Tulane',           conf:'AAC' },
-  { id:'202', loc:'Tulsa',            conf:'AAC' },
-  { id:'2242',loc:'UAB',              conf:'AAC' },
-  { id:'2638',loc:'UTEP',             conf:'AAC' },
-  { id:'2640',loc:'UTSA',             conf:'AAC' },
-  { id:'98',  loc:'Western Kentucky', conf:'AAC' },
-  { id:'2724',loc:'Wichita State',    conf:'AAC' },
-  { id:'2296',loc:'FIU',              conf:'AAC' },
-  // Missouri Valley
-  { id:'71',  loc:'Bradley',          conf:'MVC' },
-  { id:'2181',loc:'Drake',            conf:'MVC' },
-  { id:'339', loc:'Evansville',       conf:'MVC' },
-  { id:'2575',loc:'Illinois State',   conf:'MVC' },
-  { id:'2363',loc:'Indiana State',    conf:'MVC' },
-  { id:'2583',loc:'Missouri State',   conf:'MVC' },
-  { id:'2382',loc:'Murray State',     conf:'MVC' },
-  { id:'2459',loc:'Northern Iowa',    conf:'MVC' },
-  { id:'79',  loc:'Southern Illinois',conf:'MVC' },
-  { id:'2724',loc:'Valparaiso',       conf:'MVC' },
-  { id:'2057',loc:'Belmont',          conf:'MVC' },
-  // Mid-American
-  { id:'2006',loc:'Akron',            conf:'MAC' },
-  { id:'2050',loc:'Ball State',       conf:'MAC' },
-  { id:'189', loc:'Bowling Green',    conf:'MAC' },
-  { id:'2', loc:'Buffalo',            conf:'MAC' },
-  { id:'2115',loc:'Central Michigan', conf:'MAC' },
-  { id:'2199',loc:'Eastern Michigan', conf:'MAC' },
-  { id:'2390',loc:'Kent State',       conf:'MAC' },
-  { id:'193', loc:'Miami (OH)',        conf:'MAC' },
-  { id:'2468',loc:'Northern Illinois',conf:'MAC' },
-  { id:'307', loc:'Ohio',             conf:'MAC' },
-  { id:'2710',loc:'Toledo',           conf:'MAC' },
-  { id:'2724',loc:'Western Michigan', conf:'MAC' },
-  // Sun Belt
-  { id:'2026',loc:'Appalachian State',conf:'SBC' },
-  { id:'2032',loc:'Arkansas State',   conf:'SBC' },
-  { id:'324', loc:'Coastal Carolina', conf:'SBC' },
-  { id:'290', loc:'Georgia State',    conf:'SBC' },
-  { id:'338', loc:'James Madison',    conf:'SBC' },
-  { id:'2429',loc:'Louisiana',        conf:'SBC' },
-  { id:'2433',loc:'Louisiana Monroe', conf:'SBC' },
-  { id:'2655',loc:'Marshall',         conf:'SBC' },
-  { id:'295', loc:'Old Dominion',     conf:'SBC' },
-  { id:'6',   loc:'South Alabama',    conf:'SBC' },
-  { id:'326', loc:'Texas State',      conf:'SBC' },
-  { id:'314', loc:'Troy',             conf:'SBC' },
-  { id:'2429',loc:'Arkansas-Little Rock',conf:'SBC' },
-  { id:'2572',loc:'Southern Miss',    conf:'SBC' },
-  // ASUN
-  { id:'2057',loc:'Bellarmine',       conf:'ASUN' },
-  { id:'2253',loc:'Eastern Kentucky', conf:'ASUN' },
-  { id:'277', loc:'Florida Gulf Coast',conf:'ASUN' },
-  { id:'368', loc:'Jacksonville',     conf:'ASUN' },
-  { id:'2414',loc:'Kennesaw State',   conf:'ASUN' },
-  { id:'2335',loc:'Liberty',          conf:'ASUN' },
-  { id:'2421',loc:'Lipscomb',         conf:'ASUN' },
-  { id:'2650',loc:'North Alabama',    conf:'ASUN' },
-  { id:'2459',loc:'North Florida',    conf:'ASUN' },
-  { id:'2543',loc:'Queens',           conf:'ASUN' },
-  { id:'55',  loc:'Jacksonville State',conf:'ASUN' },
-  // CAA
-  { id:'2429',loc:'Campbell',         conf:'CAA' },
-  { id:'2168',loc:'Charleston',       conf:'CAA' },
-  { id:'48',  loc:'Delaware',         conf:'CAA' },
-  { id:'2211',loc:'Drexel',           conf:'CAA' },
-  { id:'2233',loc:'Elon',             conf:'CAA' },
-  { id:'2335',loc:'Hampton',          conf:'CAA' },
-  { id:'2357',loc:'Hofstra',          conf:'CAA' },
-  { id:'2579',loc:'Monmouth',         conf:'CAA' },
-  { id:'2450',loc:'NC A&T',           conf:'CAA' },
-  { id:'2633',loc:'Northeastern',     conf:'CAA' },
-  { id:'2636',loc:'Stony Brook',      conf:'CAA' },
-  { id:'2116',loc:'Towson',           conf:'CAA' },
-  { id:'2743',loc:'UNC Wilmington',   conf:'CAA' },
-  { id:'2750',loc:'William & Mary',   conf:'CAA' },
-  // Patriot
-  { id:'90',  loc:'American',         conf:'Pat' },
-  { id:'349', loc:'Army',             conf:'Pat' },
-  { id:'104', loc:'Boston University',conf:'Pat' },
-  { id:'2083',loc:'Bucknell',         conf:'Pat' },
-  { id:'2116',loc:'Colgate',          conf:'Pat' },
-  { id:'107', loc:'Holy Cross',       conf:'Pat' },
-  { id:'2389',loc:'Lafayette',        conf:'Pat' },
-  { id:'2394',loc:'Lehigh',           conf:'Pat' },
-  { id:'2401',loc:'Loyola Maryland',  conf:'Pat' },
-  { id:'2649',loc:'Navy',             conf:'Pat' },
-  // Ivy League
-  { id:'171', loc:'Columbia',         conf:'Ivy' },
-  { id:'172', loc:'Cornell',          conf:'Ivy' },
-  { id:'159', loc:'Dartmouth',        conf:'Ivy' },
-  { id:'108', loc:'Harvard',          conf:'Ivy' },
-  { id:'219', loc:'Penn',             conf:'Ivy' },
-  { id:'163', loc:'Princeton',        conf:'Ivy' },
-  { id:'41',  loc:'Yale',             conf:'Ivy' },
-  // Southern
-  { id:'2213',loc:'East Tennessee State',conf:'SoCon' },
-  { id:'290', loc:'Furman',           conf:'SoCon' },
-  { id:'2406',loc:'Mercer',           conf:'SoCon' },
-  { id:'2560',loc:'Samford',          conf:'SoCon' },
-  { id:'2875',loc:'The Citadel',      conf:'SoCon' },
-  { id:'2757',loc:'VMI',              conf:'SoCon' },
-  { id:'2764',loc:'Western Carolina', conf:'SoCon' },
-  { id:'2755',loc:'Wofford',          conf:'SoCon' },
-  { id:'2742',loc:'UNC Greensboro',   conf:'SoCon' },
-  // Horizon
-  { id:'325', loc:'Cleveland State',  conf:'HL' },
-  { id:'2197',loc:'Detroit Mercy',    conf:'HL' },
-  { id:'70',  loc:'IUPUI',            conf:'HL' },
-  { id:'2571',loc:'Milwaukee',        conf:'HL' },
-  { id:'2467',loc:'Northern Kentucky',conf:'HL' },
-  { id:'2473',loc:'Oakland',          conf:'HL' },
-  { id:'2543',loc:'Purdue Fort Wayne',conf:'HL' },
-  { id:'2547',loc:'Robert Morris',    conf:'HL' },
-  { id:'2771',loc:'Wright State',     conf:'HL' },
-  { id:'2773',loc:'Youngstown State', conf:'HL' },
-  { id:'292', loc:'UIC',              conf:'HL' },
-  // MAAC
-  { id:'2117',loc:'Canisius',         conf:'MAAC' },
-  { id:'278', loc:'Fairfield',        conf:'MAAC' },
-  { id:'2373',loc:'Iona',             conf:'MAAC' },
-  { id:'2394',loc:'Manhattan',        conf:'MAAC' },
-  { id:'2396',loc:'Marist',           conf:'MAAC' },
-  { id:'2648',loc:'Niagara',          conf:'MAAC' },
-  { id:'2545',loc:'Quinnipiac',       conf:'MAAC' },
-  { id:'2549',loc:'Rider',            conf:'MAAC' },
-  { id:'2561',loc:"Saint Peter's",    conf:'MAAC' },
-  { id:'2596',loc:'Siena',            conf:'MAAC' },
-  // Big Sky
-  { id:'2254',loc:'Eastern Washington',conf:'BSky' },
-  { id:'304', loc:'Gardner-Webb',     conf:'BSky' },
-  { id:'2350',loc:'High Point',       conf:'BSky' },
-  { id:'70',  loc:'Idaho',            conf:'BSky' },
-  { id:'2430',loc:'Idaho State',      conf:'BSky' },
-  { id:'2403',loc:'Longwood',         conf:'BSky' },
-  { id:'2400',loc:'Montana',          conf:'BSky' },
-  { id:'2585',loc:'Montana State',    conf:'BSky' },
-  { id:'2464',loc:'Northern Arizona', conf:'BSky' },
-  { id:'2466',loc:'Northern Colorado',conf:'BSky' },
-  { id:'2533',loc:'Portland State',   conf:'BSky' },
-  { id:'2544',loc:'Radford',          conf:'BSky' },
-  { id:'2556',loc:'Sacramento State', conf:'BSky' },
-  { id:'2628',loc:'Southern Utah',    conf:'BSky' },
-  { id:'2740',loc:'UNC Asheville',    conf:'BSky' },
-  { id:'2724',loc:'Weber State',      conf:'BSky' },
-  { id:'2769',loc:'Winthrop',         conf:'BSky' },
-  // Big West
-  { id:'2117',loc:'Cal Poly',         conf:'BW' },
-  { id:'2066',loc:'Cal State Bakersfield',conf:'BW' },
-  { id:'2118',loc:'Cal State Fullerton',conf:'BW' },
-  { id:'2119',loc:'Cal State Northridge',conf:'BW' },
-  { id:'84',  loc:'Hawaii',           conf:'BW' },
-  { id:'2413',loc:'Long Beach State', conf:'BW' },
-  { id:'302', loc:'UC Davis',         conf:'BW' },
-  { id:'2724',loc:'UC Irvine',        conf:'BW' },
-  { id:'2725',loc:'UC Riverside',     conf:'BW' },
-  { id:'2727',loc:'UC San Diego',     conf:'BW' },
-  { id:'2728',loc:'UC Santa Barbara', conf:'BW' },
-  // WAC
-  { id:'2317',loc:'Grand Canyon',     conf:'WAC' },
-  { id:'2372',loc:'Incarnate Word',   conf:'WAC' },
-  { id:'2433',loc:'Lamar',            conf:'WAC' },
-  { id:'2377',loc:'New Mexico State', conf:'WAC' },
-  { id:'2564',loc:'Sam Houston',      conf:'WAC' },
-  { id:'2575',loc:'Seattle',          conf:'WAC' },
-  { id:'2614',loc:'Stephen F. Austin',conf:'WAC' },
-  { id:'2657',loc:'Tarleton State',   conf:'WAC' },
-  { id:'2664',loc:'Texas A&M-Corpus Christi',conf:'WAC' },
-  { id:'2737',loc:'UT Arlington',     conf:'WAC' },
-  { id:'2756',loc:'Utah Tech',        conf:'WAC' },
-  { id:'2752',loc:'Utah Valley',      conf:'WAC' },
-  // Ohio Valley
-  { id:'2006',loc:'Eastern Illinois', conf:'OVC' },
-  { id:'2590',loc:'Morehead State',   conf:'OVC' },
-  { id:'2615',loc:'SIU Edwardsville', conf:'OVC' },
-  { id:'2621',loc:'Southeast Missouri State',conf:'OVC' },
-  { id:'2613',loc:'Southern Indiana', conf:'OVC' },
-  { id:'2662',loc:'Tennessee Martin', conf:'OVC' },
-  { id:'2659',loc:'Tennessee State',  conf:'OVC' },
-  { id:'2661',loc:'Tennessee Tech',   conf:'OVC' },
-  // Summit
-  { id:'2185',loc:'Denver',           conf:'Sum' },
-  { id:'2459',loc:'North Dakota State',conf:'Sum' },
-  { id:'2490',loc:'Omaha',            conf:'Sum' },
-  { id:'2427',loc:'Oral Roberts',     conf:'Sum' },
-  { id:'2618',loc:'South Dakota State',conf:'Sum' },
-  { id:'2617',loc:'St. Thomas',       conf:'Sum' },
-  { id:'2767',loc:'Western Illinois', conf:'Sum' },
-  // America East
-  { id:'399', loc:'Albany',           conf:'AE' },
-  { id:'2', loc:'Bryant',             conf:'AE' },
-  { id:'2390',loc:'Maine',            conf:'AE' },
-  { id:'2635',loc:'New Hampshire',    conf:'AE' },
-  { id:'2634',loc:'NJIT',             conf:'AE' },
-  { id:'2655',loc:'UMass Lowell',     conf:'AE' },
-  { id:'2395',loc:'UMBC',             conf:'AE' },
-  { id:'261', loc:'Vermont',          conf:'AE' },
-  // NEC
-  { id:'2132',loc:'Central Connecticut',conf:'NEC' },
-  { id:'2401',loc:'LIU',              conf:'NEC' },
-  { id:'2407',loc:'Merrimack',        conf:'NEC' },
-  { id:'2557',loc:'Sacred Heart',     conf:'NEC' },
-  { id:'2558',loc:'Saint Francis',    conf:'NEC' },
-  { id:'2763',loc:'Wagner',           conf:'NEC' },
-  // SWAC
-  { id:'2332',loc:'Alcorn State',     conf:'SWAC' },
-  { id:'2006',loc:'Arkansas-Pine Bluff',conf:'SWAC' },
-  { id:'2066',loc:'Bethune-Cookman',  conf:'SWAC' },
-  { id:'275', loc:'Florida A&M',      conf:'SWAC' },
-  { id:'2315',loc:'Grambling State',  conf:'SWAC' },
-  { id:'2361',loc:'Houston Christian',conf:'SWAC' },
-  { id:'2378',loc:'Jackson State',    conf:'SWAC' },
-  { id:'2578',loc:'Mississippi Valley State',conf:'SWAC' },
-  { id:'2534',loc:'Prairie View A&M', conf:'SWAC' },
-  { id:'2610',loc:'Southern',         conf:'SWAC' },
-  { id:'2667',loc:'Texas Southern',   conf:'SWAC' },
-  // MEAC
-  { id:'2132',loc:'Coppin State',     conf:'MEAC' },
-  { id:'2180',loc:'Delaware State',   conf:'MEAC' },
-  { id:'47',  loc:'Howard',           conf:'MEAC' },
-  { id:'2394',loc:'Maryland Eastern Shore',conf:'MEAC' },
-  { id:'2582',loc:'Morgan State',     conf:'MEAC' },
-  { id:'2653',loc:'Norfolk State',    conf:'MEAC' },
-  { id:'2452',loc:'North Carolina Central',conf:'MEAC' },
-  { id:'2609',loc:'South Carolina State',conf:'MEAC' },
-  // Big South
-  { id:'2429',loc:'Campbell',         conf:'BSouth' },
-  { id:'2350',loc:'High Point',       conf:'BSouth' },
-  { id:'2403',loc:'Longwood',         conf:'BSouth' },
-  { id:'2335',loc:'Presbyterian',     conf:'BSouth' },
-  { id:'2544',loc:'Radford',          conf:'BSouth' },
-  { id:'2769',loc:'Winthrop',         conf:'BSouth' },
-  { id:'2740',loc:'UNC Asheville',    conf:'BSouth' },
-  // Southland
-  { id:'115', loc:'McNeese',          conf:'SLC' },
-  { id:'2644',loc:'Nicholls',         conf:'SLC' },
-  { id:'2608',loc:'Southeastern Louisiana',conf:'SLC' },
-  { id:'2450',loc:'North Carolina A&T',conf:'SLC' },
-  { id:'2006',loc:'Lamar',            conf:'SLC' },
-  { id:'2564',loc:'Houston Christian',conf:'SLC' },
+  { id:"2803", loc:"Bryant", conf:'AE' },
+  { id:"160", loc:"New Hampshire", conf:'AE' },
+  { id:"399", loc:"UAlbany", conf:'AE' },
+  { id:"2349", loc:"UMass Lowell", conf:'AE' },
+  { id:"2066", loc:"Binghamton", conf:'AE' },
+  { id:"311", loc:"Maine", conf:'AE' },
+  { id:"2885", loc:"NJIT", conf:'AE' },
+  { id:"2378", loc:"UMBC", conf:'AE' },
+  { id:"261", loc:"Vermont", conf:'AE' },
+  { id:"2429", loc:"Charlotte", conf:'AAC' },
+  { id:"151", loc:"East Carolina", conf:'AAC' },
+  { id:"2226", loc:"Florida Atlantic", conf:'AAC' },
+  { id:"235", loc:"Memphis", conf:'AAC' },
+  { id:"249", loc:"North Texas", conf:'AAC' },
+  { id:"242", loc:"Rice", conf:'AAC' },
+  { id:"58", loc:"South Florida", conf:'AAC' },
+  { id:"218", loc:"Temple", conf:'AAC' },
+  { id:"2655", loc:"Tulane", conf:'AAC' },
+  { id:"202", loc:"Tulsa", conf:'AAC' },
+  { id:"2724", loc:"Wichita State", conf:'AAC' },
+  { id:"5", loc:"UAB", conf:'AAC' },
+  { id:"2636", loc:"UTSA", conf:'AAC' },
+  { id:"2166", loc:"Davidson", conf:'A10' },
+  { id:"2168", loc:"Dayton", conf:'A10' },
+  { id:"2184", loc:"Duquesne", conf:'A10' },
+  { id:"2244", loc:"George Mason", conf:'A10' },
+  { id:"45", loc:"George Washington", conf:'A10' },
+  { id:"2350", loc:"Loyola Chicago", conf:'A10' },
+  { id:"227", loc:"Rhode Island", conf:'A10' },
+  { id:"257", loc:"Richmond", conf:'A10' },
+  { id:"2603", loc:"Saint Joseph's", conf:'A10' },
+  { id:"139", loc:"Saint Louis", conf:'A10' },
+  { id:"2670", loc:"VCU", conf:'A10' },
+  { id:"2230", loc:"Fordham", conf:'A10' },
+  { id:"2325", loc:"La Salle", conf:'A10' },
+  { id:"179", loc:"St. Bonaventure", conf:'A10' },
+  { id:"25", loc:"California", conf:'ACC' },
+  { id:"103", loc:"Boston College", conf:'ACC' },
+  { id:"228", loc:"Clemson", conf:'ACC' },
+  { id:"150", loc:"Duke", conf:'ACC' },
+  { id:"52", loc:"Florida State", conf:'ACC' },
+  { id:"59", loc:"Georgia Tech", conf:'ACC' },
+  { id:"97", loc:"Louisville", conf:'ACC' },
+  { id:"152", loc:"NC State", conf:'ACC' },
+  { id:"153", loc:"North Carolina", conf:'ACC' },
+  { id:"87", loc:"Notre Dame", conf:'ACC' },
+  { id:"221", loc:"Pittsburgh", conf:'ACC' },
+  { id:"2567", loc:"SMU", conf:'ACC' },
+  { id:"24", loc:"Stanford", conf:'ACC' },
+  { id:"183", loc:"Syracuse", conf:'ACC' },
+  { id:"258", loc:"Virginia", conf:'ACC' },
+  { id:"259", loc:"Virginia Tech", conf:'ACC' },
+  { id:"154", loc:"Wake Forest", conf:'ACC' },
+  { id:"2390", loc:"Miami", conf:'ACC' },
+  { id:"294", loc:"Jacksonville", conf:'ASUN' },
+  { id:"2454", loc:"North Florida", conf:'ASUN' },
+  { id:"2511", loc:"Queens University", conf:'ASUN' },
+  { id:"2697", loc:"West Florida", conf:'ASUN' },
+  { id:"91", loc:"Bellarmine", conf:'ASUN' },
+  { id:"526", loc:"Florida Gulf Coast", conf:'ASUN' },
+  { id:"288", loc:"Lipscomb", conf:'ASUN' },
+  { id:"56", loc:"Stetson", conf:'ASUN' },
+  { id:"9", loc:"Arizona State", conf:'B12' },
+  { id:"252", loc:"BYU", conf:'B12' },
+  { id:"239", loc:"Baylor", conf:'B12' },
+  { id:"2132", loc:"Cincinnati", conf:'B12' },
+  { id:"38", loc:"Colorado", conf:'B12' },
+  { id:"248", loc:"Houston", conf:'B12' },
+  { id:"2305", loc:"Kansas", conf:'B12' },
+  { id:"197", loc:"Oklahoma State", conf:'B12' },
+  { id:"2628", loc:"TCU", conf:'B12' },
+  { id:"2641", loc:"Texas Tech", conf:'B12' },
+  { id:"2116", loc:"UCF", conf:'B12' },
+  { id:"254", loc:"Utah", conf:'B12' },
+  { id:"277", loc:"West Virginia", conf:'B12' },
+  { id:"12", loc:"Arizona", conf:'B12' },
+  { id:"66", loc:"Iowa State", conf:'B12' },
+  { id:"2306", loc:"Kansas State", conf:'B12' },
+  { id:"2086", loc:"Butler", conf:'BE' },
+  { id:"156", loc:"Creighton", conf:'BE' },
+  { id:"305", loc:"DePaul", conf:'BE' },
+  { id:"46", loc:"Georgetown", conf:'BE' },
+  { id:"269", loc:"Marquette", conf:'BE' },
+  { id:"2507", loc:"Providence", conf:'BE' },
+  { id:"2550", loc:"Seton Hall", conf:'BE' },
+  { id:"2599", loc:"St. John's", conf:'BE' },
+  { id:"41", loc:"UConn", conf:'BE' },
+  { id:"2752", loc:"Xavier", conf:'BE' },
+  { id:"222", loc:"Villanova", conf:'BE' },
+  { id:"70", loc:"Idaho", conf:'BSky' },
+  { id:"2458", loc:"Northern Colorado", conf:'BSky' },
+  { id:"2502", loc:"Portland State", conf:'BSky' },
+  { id:"253", loc:"Southern Utah", conf:'BSky' },
+  { id:"149", loc:"Montana", conf:'BSky' },
+  { id:"3101", loc:"Utah Tech", conf:'BSky' },
+  { id:"331", loc:"Eastern Washington", conf:'BSky' },
+  { id:"304", loc:"Idaho State", conf:'BSky' },
+  { id:"147", loc:"Montana State", conf:'BSky' },
+  { id:"2464", loc:"Northern Arizona", conf:'BSky' },
+  { id:"2692", loc:"Weber State", conf:'BSky' },
+  { id:"2272", loc:"High Point", conf:'BSouth' },
+  { id:"2344", loc:"Longwood", conf:'BSouth' },
+  { id:"2427", loc:"UNC Asheville", conf:'BSouth' },
+  { id:"2127", loc:"Charleston Southern", conf:'BSouth' },
+  { id:"2241", loc:"Gardner-Webb", conf:'BSouth' },
+  { id:"2506", loc:"Presbyterian", conf:'BSouth' },
+  { id:"2908", loc:"South Carolina Upstate", conf:'BSouth' },
+  { id:"2737", loc:"Winthrop", conf:'BSouth' },
+  { id:"2515", loc:"Radford", conf:'BSouth' },
+  { id:"356", loc:"Illinois", conf:'B10' },
+  { id:"84", loc:"Indiana", conf:'B10' },
+  { id:"2294", loc:"Iowa", conf:'B10' },
+  { id:"120", loc:"Maryland", conf:'B10' },
+  { id:"130", loc:"Michigan", conf:'B10' },
+  { id:"127", loc:"Michigan State", conf:'B10' },
+  { id:"135", loc:"Minnesota", conf:'B10' },
+  { id:"158", loc:"Nebraska", conf:'B10' },
+  { id:"77", loc:"Northwestern", conf:'B10' },
+  { id:"2483", loc:"Oregon", conf:'B10' },
+  { id:"213", loc:"Penn State", conf:'B10' },
+  { id:"26", loc:"UCLA", conf:'B10' },
+  { id:"30", loc:"USC", conf:'B10' },
+  { id:"264", loc:"Washington", conf:'B10' },
+  { id:"275", loc:"Wisconsin", conf:'B10' },
+  { id:"194", loc:"Ohio State", conf:'B10' },
+  { id:"164", loc:"Rutgers", conf:'B10' },
+  { id:"2509", loc:"Purdue", conf:'B10' },
+  { id:"13", loc:"Cal Poly", conf:'BW' },
+  { id:"16", loc:"Sacramento State", conf:'BW' },
+  { id:"300", loc:"UC Irvine", conf:'BW' },
+  { id:"27", loc:"UC Riverside", conf:'BW' },
+  { id:"28", loc:"UC San Diego", conf:'BW' },
+  { id:"2540", loc:"UC Santa Barbara", conf:'BW' },
+  { id:"3084", loc:"Utah Valley", conf:'BW' },
+  { id:"2239", loc:"Cal State Fullerton", conf:'BW' },
+  { id:"2463", loc:"Cal State Northridge", conf:'BW' },
+  { id:"2856", loc:"California Baptist", conf:'BW' },
+  { id:"2934", loc:"Cal State Bakersfield", conf:'BW' },
+  { id:"299", loc:"Long Beach State", conf:'BW' },
+  { id:"232", loc:"Charleston", conf:'CAA' },
+  { id:"2210", loc:"Elon", conf:'CAA' },
+  { id:"2275", loc:"Hofstra", conf:'CAA' },
+  { id:"2619", loc:"Stony Brook", conf:'CAA' },
+  { id:"350", loc:"UNC Wilmington", conf:'CAA' },
+  { id:"2729", loc:"William & Mary", conf:'CAA' },
+  { id:"2097", loc:"Campbell", conf:'CAA' },
+  { id:"2182", loc:"Drexel", conf:'CAA' },
+  { id:"2261", loc:"Hampton", conf:'CAA' },
+  { id:"2405", loc:"Monmouth", conf:'CAA' },
+  { id:"111", loc:"Northeastern", conf:'CAA' },
+  { id:"2448", loc:"North Carolina A&T", conf:'CAA' },
+  { id:"119", loc:"Towson", conf:'CAA' },
+  { id:"48", loc:"Delaware", conf:'CUSA' },
+  { id:"2229", loc:"Florida International", conf:'CUSA' },
+  { id:"55", loc:"Jacksonville State", conf:'CUSA' },
+  { id:"338", loc:"Kennesaw State", conf:'CUSA' },
+  { id:"2393", loc:"Middle Tennessee", conf:'CUSA' },
+  { id:"2623", loc:"Missouri State", conf:'CUSA' },
+  { id:"166", loc:"New Mexico State", conf:'CUSA' },
+  { id:"98", loc:"Western Kentucky", conf:'CUSA' },
+  { id:"2335", loc:"Liberty", conf:'CUSA' },
+  { id:"2534", loc:"Sam Houston", conf:'CUSA' },
+  { id:"94", loc:"Northern Kentucky", conf:'HL' },
+  { id:"2739", loc:"Green Bay", conf:'HL' },
+  { id:"85", loc:"IU Indianapolis", conf:'HL' },
+  { id:"2750", loc:"Wright State", conf:'HL' },
+  { id:"2754", loc:"Youngstown State", conf:'HL' },
+  { id:"325", loc:"Cleveland State", conf:'HL' },
+  { id:"270", loc:"Milwaukee", conf:'HL' },
+  { id:"2459", loc:"Northern Illinois", conf:'HL' },
+  { id:"2473", loc:"Oakland", conf:'HL' },
+  { id:"2870", loc:"Purdue Fort Wayne", conf:'HL' },
+  { id:"2174", loc:"Detroit Mercy", conf:'HL' },
+  { id:"2523", loc:"Robert Morris", conf:'HL' },
+  { id:"159", loc:"Dartmouth", conf:'Ivy' },
+  { id:"172", loc:"Cornell", conf:'Ivy' },
+  { id:"108", loc:"Harvard", conf:'Ivy' },
+  { id:"163", loc:"Princeton", conf:'Ivy' },
+  { id:"43", loc:"Yale", conf:'Ivy' },
+  { id:"225", loc:"Brown", conf:'Ivy' },
+  { id:"219", loc:"Pennsylvania", conf:'Ivy' },
+  { id:"171", loc:"Columbia", conf:'Ivy' },
+  { id:"314", loc:"Iona", conf:'MAAC' },
+  { id:"2529", loc:"Sacred Heart", conf:'MAAC' },
+  { id:"2099", loc:"Canisius", conf:'MAAC' },
+  { id:"2363", loc:"Manhattan", conf:'MAAC' },
+  { id:"2368", loc:"Marist", conf:'MAAC' },
+  { id:"2771", loc:"Merrimack", conf:'MAAC' },
+  { id:"116", loc:"Mount St. Mary's", conf:'MAAC' },
+  { id:"315", loc:"Niagara", conf:'MAAC' },
+  { id:"2514", loc:"Quinnipiac", conf:'MAAC' },
+  { id:"2520", loc:"Rider", conf:'MAAC' },
+  { id:"2612", loc:"Saint Peter's", conf:'MAAC' },
+  { id:"2217", loc:"Fairfield", conf:'MAAC' },
+  { id:"2561", loc:"Siena", conf:'MAAC' },
+  { id:"2006", loc:"Akron", conf:'MAC' },
+  { id:"189", loc:"Bowling Green", conf:'MAC' },
+  { id:"2117", loc:"Central Michigan", conf:'MAC' },
+  { id:"2199", loc:"Eastern Michigan", conf:'MAC' },
+  { id:"113", loc:"Massachusetts", conf:'MAC' },
+  { id:"193", loc:"Miami (OH)", conf:'MAC' },
+  { id:"195", loc:"Ohio", conf:'MAC' },
+  { id:"2050", loc:"Ball State", conf:'MAC' },
+  { id:"2084", loc:"Buffalo", conf:'MAC' },
+  { id:"2309", loc:"Kent State", conf:'MAC' },
+  { id:"2649", loc:"Toledo", conf:'MAC' },
+  { id:"2711", loc:"Western Michigan", conf:'MAC' },
+  { id:"2415", loc:"Morgan State", conf:'MEAC' },
+  { id:"2450", loc:"Norfolk State", conf:'MEAC' },
+  { id:"2169", loc:"Delaware State", conf:'MEAC' },
+  { id:"2569", loc:"South Carolina State", conf:'MEAC' },
+  { id:"2154", loc:"Coppin State", conf:'MEAC' },
+  { id:"47", loc:"Howard", conf:'MEAC' },
+  { id:"2428", loc:"North Carolina Central", conf:'MEAC' },
+  { id:"2379", loc:"Maryland Eastern Shore", conf:'MEAC' },
+  { id:"2057", loc:"Belmont", conf:'MVC' },
+  { id:"71", loc:"Bradley", conf:'MVC' },
+  { id:"2181", loc:"Drake", conf:'MVC' },
+  { id:"339", loc:"Evansville", conf:'MVC' },
+  { id:"93", loc:"Murray State", conf:'MVC' },
+  { id:"2460", loc:"Northern Iowa", conf:'MVC' },
+  { id:"79", loc:"Southern Illinois", conf:'MVC' },
+  { id:"82", loc:"UIC", conf:'MVC' },
+  { id:"2674", loc:"Valparaiso", conf:'MVC' },
+  { id:"2287", loc:"Illinois State", conf:'MVC' },
+  { id:"282", loc:"Indiana State", conf:'MVC' },
+  { id:"2253", loc:"Grand Canyon", conf:'MW' },
+  { id:"62", loc:"Hawai'i", conf:'MW' },
+  { id:"2440", loc:"Nevada", conf:'MW' },
+  { id:"167", loc:"New Mexico", conf:'MW' },
+  { id:"23", loc:"San José State", conf:'MW' },
+  { id:"2439", loc:"UNLV", conf:'MW' },
+  { id:"2751", loc:"Wyoming", conf:'MW' },
+  { id:"2005", loc:"Air Force", conf:'MW' },
+  { id:"302", loc:"UC Davis", conf:'MW' },
+  { id:"2638", loc:"UTEP", conf:'MW' },
+  { id:"284", loc:"Stonehill", conf:'NEC' },
+  { id:"2115", loc:"Central Connecticut", conf:'NEC' },
+  { id:"2130", loc:"Chicago State", conf:'NEC' },
+  { id:"2330", loc:"Le Moyne", conf:'NEC' },
+  { id:"112358", loc:"Long Island University", conf:'NEC' },
+  { id:"2385", loc:"Mercyhurst", conf:'NEC' },
+  { id:"2441", loc:"New Haven", conf:'NEC' },
+  { id:"2681", loc:"Wagner", conf:'NEC' },
+  { id:"161", loc:"Fairleigh Dickinson", conf:'NEC' },
+  { id:"2565", loc:"SIU Edwardsville", conf:'OVC' },
+  { id:"2546", loc:"Southeast Missouri State", conf:'OVC' },
+  { id:"88", loc:"Southern Indiana", conf:'OVC' },
+  { id:"2197", loc:"Eastern Illinois", conf:'OVC' },
+  { id:"2815", loc:"Lindenwood", conf:'OVC' },
+  { id:"2413", loc:"Morehead State", conf:'OVC' },
+  { id:"2634", loc:"Tennessee State", conf:'OVC' },
+  { id:"2630", loc:"UT Martin", conf:'OVC' },
+  { id:"2710", loc:"Western Illinois", conf:'OVC' },
+  { id:"68", loc:"Boise State", conf:'Pac-12' },
+  { id:"36", loc:"Colorado State", conf:'Pac-12' },
+  { id:"278", loc:"Fresno State", conf:'Pac-12' },
+  { id:"2250", loc:"Gonzaga", conf:'Pac-12' },
+  { id:"204", loc:"Oregon State", conf:'Pac-12' },
+  { id:"21", loc:"San Diego State", conf:'Pac-12' },
+  { id:"326", loc:"Texas State", conf:'Pac-12' },
+  { id:"328", loc:"Utah State", conf:'Pac-12' },
+  { id:"265", loc:"Washington State", conf:'Pac-12' },
+  { id:"104", loc:"Boston University", conf:'Pat' },
+  { id:"44", loc:"American University", conf:'Pat' },
+  { id:"349", loc:"Army", conf:'Pat' },
+  { id:"2083", loc:"Bucknell", conf:'Pat' },
+  { id:"2142", loc:"Colgate", conf:'Pat' },
+  { id:"107", loc:"Holy Cross", conf:'Pat' },
+  { id:"322", loc:"Lafayette", conf:'Pat' },
+  { id:"2329", loc:"Lehigh", conf:'Pat' },
+  { id:"2352", loc:"Loyola Maryland", conf:'Pat' },
+  { id:"2426", loc:"Navy", conf:'Pat' },
+  { id:"333", loc:"Alabama", conf:'SEC' },
+  { id:"8", loc:"Arkansas", conf:'SEC' },
+  { id:"2", loc:"Auburn", conf:'SEC' },
+  { id:"57", loc:"Florida", conf:'SEC' },
+  { id:"61", loc:"Georgia", conf:'SEC' },
+  { id:"96", loc:"Kentucky", conf:'SEC' },
+  { id:"99", loc:"LSU", conf:'SEC' },
+  { id:"145", loc:"Ole Miss", conf:'SEC' },
+  { id:"344", loc:"Mississippi State", conf:'SEC' },
+  { id:"142", loc:"Missouri", conf:'SEC' },
+  { id:"2579", loc:"South Carolina", conf:'SEC' },
+  { id:"2633", loc:"Tennessee", conf:'SEC' },
+  { id:"251", loc:"Texas", conf:'SEC' },
+  { id:"245", loc:"Texas A&M", conf:'SEC' },
+  { id:"238", loc:"Vanderbilt", conf:'SEC' },
+  { id:"201", loc:"Oklahoma", conf:'SEC' },
+  { id:"231", loc:"Furman", conf:'SoCon' },
+  { id:"2382", loc:"Mercer", conf:'SoCon' },
+  { id:"2535", loc:"Samford", conf:'SoCon' },
+  { id:"2430", loc:"UNC Greensboro", conf:'SoCon' },
+  { id:"2678", loc:"VMI", conf:'SoCon' },
+  { id:"2635", loc:"Tennessee Tech", conf:'SoCon' },
+  { id:"236", loc:"Chattanooga", conf:'SoCon' },
+  { id:"2193", loc:"East Tennessee State", conf:'SoCon' },
+  { id:"2643", loc:"The Citadel", conf:'SoCon' },
+  { id:"2717", loc:"Western Carolina", conf:'SoCon' },
+  { id:"2747", loc:"Wofford", conf:'SoCon' },
+  { id:"2837", loc:"East Texas A&M", conf:'SLC' },
+  { id:"2277", loc:"Houston Christian", conf:'SLC' },
+  { id:"2320", loc:"Lamar", conf:'SLC' },
+  { id:"2377", loc:"McNeese", conf:'SLC' },
+  { id:"2447", loc:"Nicholls", conf:'SLC' },
+  { id:"2617", loc:"Stephen F. Austin", conf:'SLC' },
+  { id:"292", loc:"UT Rio Grande Valley", conf:'SLC' },
+  { id:"2916", loc:"Incarnate Word", conf:'SLC' },
+  { id:"2443", loc:"LSU New Orleans", conf:'SLC' },
+  { id:"2466", loc:"Northwestern State", conf:'SLC' },
+  { id:"2545", loc:"SE Louisiana", conf:'SLC' },
+  { id:"357", loc:"Texas A&M-Corpus Christi", conf:'SLC' },
+  { id:"2010", loc:"Alabama A&M", conf:'SWAC' },
+  { id:"2755", loc:"Grambling", conf:'SWAC' },
+  { id:"2504", loc:"Prairie View A&M", conf:'SWAC' },
+  { id:"2011", loc:"Alabama State", conf:'SWAC' },
+  { id:"2016", loc:"Alcorn State", conf:'SWAC' },
+  { id:"2029", loc:"Arkansas-Pine Bluff", conf:'SWAC' },
+  { id:"2065", loc:"Bethune-Cookman", conf:'SWAC' },
+  { id:"50", loc:"Florida A&M", conf:'SWAC' },
+  { id:"2296", loc:"Jackson State", conf:'SWAC' },
+  { id:"2582", loc:"Southern", conf:'SWAC' },
+  { id:"2400", loc:"Mississippi Valley State", conf:'SWAC' },
+  { id:"2640", loc:"Texas Southern", conf:'SWAC' },
+  { id:"2449", loc:"North Dakota State", conf:'Sum' },
+  { id:"2437", loc:"Omaha", conf:'Sum' },
+  { id:"2571", loc:"South Dakota State", conf:'Sum' },
+  { id:"2900", loc:"St. Thomas", conf:'Sum' },
+  { id:"233", loc:"South Dakota", conf:'Sum' },
+  { id:"140", loc:"Kansas City", conf:'Sum' },
+  { id:"155", loc:"North Dakota", conf:'Sum' },
+  { id:"198", loc:"Oral Roberts", conf:'Sum' },
+  { id:"2026", loc:"App State", conf:'SBC' },
+  { id:"295", loc:"Old Dominion", conf:'SBC' },
+  { id:"2032", loc:"Arkansas State", conf:'SBC' },
+  { id:"290", loc:"Georgia Southern", conf:'SBC' },
+  { id:"2348", loc:"Louisiana Tech", conf:'SBC' },
+  { id:"276", loc:"Marshall", conf:'SBC' },
+  { id:"2572", loc:"Southern Miss", conf:'SBC' },
+  { id:"2433", loc:"UL Monroe", conf:'SBC' },
+  { id:"324", loc:"Coastal Carolina", conf:'SBC' },
+  { id:"2247", loc:"Georgia State", conf:'SBC' },
+  { id:"256", loc:"James Madison", conf:'SBC' },
+  { id:"309", loc:"Louisiana", conf:'SBC' },
+  { id:"6", loc:"South Alabama", conf:'SBC' },
+  { id:"2653", loc:"Troy", conf:'SBC' },
+  { id:"2046", loc:"Austin Peay", conf:'UAC' },
+  { id:"2110", loc:"Central Arkansas", conf:'UAC' },
+  { id:"2198", loc:"Eastern Kentucky", conf:'UAC' },
+  { id:"2453", loc:"North Alabama", conf:'UAC' },
+  { id:"2627", loc:"Tarleton State", conf:'UAC' },
+  { id:"250", loc:"UT Arlington", conf:'UAC' },
+  { id:"2000", loc:"Abilene Christian", conf:'UAC' },
+  { id:"2031", loc:"Little Rock", conf:'UAC' },
+  { id:"2698", loc:"West Georgia", conf:'UAC' },
+  { id:"279", loc:"Pacific", conf:'WCC' },
+  { id:"2501", loc:"Portland", conf:'WCC' },
+  { id:"2608", loc:"Saint Mary's", conf:'WCC' },
+  { id:"301", loc:"San Diego", conf:'WCC' },
+  { id:"2539", loc:"San Francisco", conf:'WCC' },
+  { id:"2541", loc:"Santa Clara", conf:'WCC' },
+  { id:"2172", loc:"Denver", conf:'WCC' },
+  { id:"2492", loc:"Pepperdine", conf:'WCC' },
+  { id:"2351", loc:"Loyola Marymount", conf:'WCC' },
+  { id:"2547", loc:"Seattle U", conf:'WCC' },
 ];
 
 // Conf display info
 const CONF_INFO = {
-  'ACC':    { full: 'Atlantic Coast',        id: '2'    },
-  'B10':    { full: 'Big Ten',               id: '4'    },
-  'B12':    { full: 'Big 12',               id: '12'   },
-  'SEC':    { full: 'Southeastern',          id: '8'    },
-  'BE':     { full: 'Big East',             id: '22'   },
-  'A10':    { full: 'Atlantic 10',          id: '3'    },
-  'WCC':    { full: 'West Coast',           id: '26'   },
-  'MW':     { full: 'Mountain West',        id: '18'   },
-  'MVC':    { full: 'Missouri Valley',      id: '24'   },
-  'MAC':    { full: 'Mid-American',         id: '14'   },
-  'AAC':    { full: 'American Athletic',    id: '151'  },
-  'SBC':    { full: 'Sun Belt',             id: '37'   },
-  'ASUN':   { full: 'Atlantic Sun',         id: '46'   },
-  'CAA':    { full: 'Colonial Athletic',    id: '47'   },
-  'Pat':    { full: 'Patriot',             id: '48'   },
-  'Ivy':    { full: 'Ivy League',           id: '49'   },
-  'SoCon':  { full: 'Southern',            id: '29'   },
-  'HL':     { full: 'Horizon',             id: '45'   },
-  'MAAC':   { full: 'Metro Atlantic',       id: '73'   },
-  'BSky':   { full: 'Big Sky',             id: '40'   },
-  'BW':     { full: 'Big West',            id: '172'  },
-  'WAC':    { full: 'Western Athletic',    id: '32'   },
-  'OVC':    { full: 'Ohio Valley',         id: '19'   },
-  'Sum':    { full: 'Summit',              id: '23'   },
-  'AE':     { full: 'America East',        id: '173'  },
-  'NEC':    { full: 'Northeast',           id: '2590' },
-  'SWAC':   { full: 'Southwestern Athletic',id: '79'  },
-  'MEAC':   { full: 'Mid-Eastern Athletic', id: '55'  },
-  'BSouth': { full: 'Big South',           id: '60'   },
-  'SLC':    { full: 'Southland',           id: '62'   },
+  "AE": { full: "America East", id: '1' },
+  "AAC": { full: "American Athletic", id: '62' },
+  "A10": { full: "Atlantic 10", id: '3' },
+  "ACC": { full: "Atlantic Coast", id: '2' },
+  "ASUN": { full: "Atlantic Sun", id: '46' },
+  "B12": { full: "Big 12", id: '8' },
+  "BE": { full: "Big East", id: '4' },
+  "BSky": { full: "Big Sky", id: '5' },
+  "BSouth": { full: "Big South", id: '6' },
+  "B10": { full: "Big Ten", id: '7' },
+  "BW": { full: "Big West", id: '9' },
+  "CAA": { full: "Coastal Athletic", id: '10' },
+  "CUSA": { full: "Conference USA", id: '11' },
+  "HL": { full: "Horizon", id: '45' },
+  "Ivy": { full: "Ivy League", id: '12' },
+  "MAAC": { full: "Metro Atlantic", id: '13' },
+  "MAC": { full: "Mid-American", id: '14' },
+  "MEAC": { full: "Mid-Eastern Athletic", id: '16' },
+  "MVC": { full: "Missouri Valley", id: '18' },
+  "MW": { full: "Mountain West", id: '44' },
+  "NEC": { full: "Northeast", id: '19' },
+  "OVC": { full: "Ohio Valley", id: '20' },
+  "Pac-12": { full: "Pac-12", id: '21' },
+  "Pat": { full: "Patriot", id: '22' },
+  "SEC": { full: "Southeastern", id: '23' },
+  "SoCon": { full: "Southern", id: '24' },
+  "SLC": { full: "Southland", id: '25' },
+  "SWAC": { full: "Southwestern Athletic", id: '26' },
+  "Sum": { full: "Summit", id: '49' },
+  "SBC": { full: "Sun Belt", id: '27' },
+  "UAC": { full: "United Athletic", id: '30' },
+  "WCC": { full: "West Coast", id: '29' },
 };
 
 async function buildTeamListFromESPN() {
+  if (IS_NBA) {
+    TEAM_LIST = NBA_TEAMS.map(t => ({
+      id: t.id, display: t.name, short: t.name, emoji: t.emoji,
+      conf: t.conf, div: t.div, confFull: t.conf + 'ern Conference', confId: '',
+      vibe: 'love',
+      aliases: [t.loc.toLowerCase(), `${t.loc} ${t.name}`.toLowerCase(), t.abbr.toLowerCase()],
+      _espnLocation: t.loc,
+    })).sort((a, b) => a.display.localeCompare(b.display));
+    window.TEAM_LIST = TEAM_LIST;
+    return;
+  }
   // Build TEAM_LIST from hardcoded TEAMS_DB (verified IDs + confs),
   // then verify/supplement IDs against ESPN's API in the background.
   const seen = new Set();
@@ -1953,6 +2021,10 @@ async function verifyIdsFromESPN() {
 
 // Build conference filter categories from live TEAM_LIST
 function buildConferenceCategories() {
+  if (IS_NBA) {
+    return ['East', 'West', 'Atlantic', 'Central', 'Southeast', 'Northwest', 'Pacific', 'Southwest']
+      .map(c => ({ id: c, label: c }));
+  }
   const seen = new Map();
   for (const t of TEAM_LIST) {
     if (t.conf && t.conf !== '—' && !seen.has(t.conf)) seen.set(t.conf, t.conf);
@@ -1963,10 +2035,10 @@ function buildConferenceCategories() {
 }
 
 // ─── CELEBRITY PACKS ──────────────────────────────────────────────────────────
-const CELEB_PACKS = [
+const NCAA_PACKS = [
   {
-    name: 'Default', fullName: 'Did We Win', avatar: '🏀', isDefault: true,
-    title: 'Default lineup (shown to first-time visitors)',
+    name: 'Starter', fullName: 'Did We Win', avatar: '🏀',
+    title: 'Starter lineup',
     teams: ['North Carolina', 'Dook', 'Illinois', 'Michigan', 'Wisconsin', 'Indiana'],
   },
   {
@@ -1992,6 +2064,18 @@ const CELEB_PACKS = [
   },
 ];
 
+const NBA_PACKS = [
+  { name: 'Starter', avatar: '🏀', title: 'Starter lineup',
+    teams: ['Bulls', 'Celtics', 'Lakers', 'Warriors', 'Knicks', 'Thunder'] },
+  { name: 'MJ', fullName: 'Michael Jordan', avatar: '🐐',
+    teams: ['Bulls', 'Hornets', 'Wizards'] },
+  { name: 'LeBron', fullName: 'LeBron James', avatar: '👑',
+    teams: ['Lakers', 'Cavaliers', 'Heat'] },
+  { name: 'Central', avatar: '🧭', title: 'Central Division',
+    teams: ['Bulls', 'Cavaliers', 'Pistons', 'Pacers', 'Bucks'] },
+];
+const CELEB_PACKS = IS_NBA ? NBA_PACKS : NCAA_PACKS;
+
 function findTeamByName(name) {
   const lower = name.toLowerCase();
   return TEAM_LIST.find(t =>
@@ -2011,8 +2095,11 @@ function loadCelebPack(pack) {
 }
 
 function renderCelebRow() {
-  const row = document.getElementById('celeb-row');
-  row.innerHTML = CELEB_PACKS.map(pack => `
+  document.getElementById('celeb-row').innerHTML = packChipsHTML();
+}
+
+function packChipsHTML() {
+  return CELEB_PACKS.map(pack => `
     <div class="celeb-chip" onclick="loadCelebPack(CELEB_PACKS.find(p=>p.name==='${pack.name}'))"
          title="${pack.title || pack.fullName + "'s picks"}">
       <span class="celeb-avatar">${pack.avatar}</span>
@@ -2024,10 +2111,11 @@ function renderCelebRow() {
 let cachedTop25Ids = null;
 
 async function fetchTop25Ids() {
+  if (IS_NBA) return [];
   if (cachedTop25Ids) return cachedTop25Ids;
   try {
     const r = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/rankings',
+      `${API}/rankings`,
       { cache: 'no-store' }
     );
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -2049,7 +2137,7 @@ async function fetchTop25Ids() {
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 // v3 key — avoids loading corrupt old hardcoded-ID data
-const STORAGE_KEY = 'dww_selected_teams_v3';
+const STORAGE_KEY = IS_NBA ? 'dww_nba_teams_v1' : 'dww_selected_teams_v3';
 
 function loadSavedNames() {
   try {
@@ -2106,18 +2194,41 @@ function periodLabel(comp) {
   const s = comp.status;
   if (!s) return '';
   const p = s.period || 0;
-  const half = p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT';
+  const half = IS_NBA
+    ? (p <= 4 ? `Q${p}` : (p === 5 ? 'OT' : `${p - 4}OT`))
+    : (p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT');
   const clock = s.displayClock;
-  return (clock && clock !== '0:00') ? `${half} · ${clock}` : half;
+  if (s.type?.name === 'STATUS_HALFTIME' || /halftime/i.test(s.type?.description || '')) return 'Halftime';
+  return (clock && clock !== '0:00' && clock !== '0.0') ? `${half} · ${clock}` : half;
 }
 
 // ─── FETCH ───────────────────────────────────────────────────────────────────
+// Team schedules are cached and only refetched when they could have changed:
+// the team is playing, a game should have started, or 10 minutes have passed.
+// (An NBA season schedule is ~0.9 MB, so this matters on phones.)
+const SCHED_CACHE = new Map();
+async function getSchedule(team) {
+  const key = String(team.id);
+  const c = SCHED_CACHE.get(key);
+  const now = Date.now();
+  const stale = !c || now - c.at > 10 * 60 * 1000 || LIVE_IDS.has(key) ||
+    (c.data.events || []).some(e =>
+      e.competitions?.[0]?.status?.type?.state !== 'post' && new Date(e.date).getTime() <= now);
+  if (!stale) return c.data;
+  const r = await fetch(`${API}/teams/${team.id}/schedule`, { cache: 'no-store' });
+  if (!r.ok) {
+    if (c) return c.data;
+    throw new Error(`HTTP ${r.status}`);
+  }
+  const data = await r.json();
+  SCHED_CACHE.set(key, { data, at: now });
+  return data;
+}
+
 async function fetchTeam(team) {
   // Only the schedule endpoint is used: ESPN's /teams/{id} endpoint no longer
   // sends CORS headers, and a failed fetch there used to break every card.
-  const schedRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/${team.id}/schedule`, { cache: 'no-store' });
-  if (!schedRes.ok) throw new Error(`HTTP ${schedRes.status}`);
-  const data = await schedRes.json();
+  const data = await getSchedule(team);
   // Season year comes from ESPN (e.g. 2027 for 2026-27) so it rolls over on its own.
   const seasonYear = data.season?.year || data.requestedSeason?.year ||
     (new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear());
@@ -2141,10 +2252,10 @@ async function fetchTeam(team) {
   const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
   const recordStr = data.team?.recordSummary || totalRec?.summary || '';
 
-  let confRecordStr = '';
+  let confRecordStr = IS_NBA ? (data.team?.standingSummary || '') : '';
   // Use the conference group ESPN reports for this team (the hardcoded
   // CONF_INFO ids were mostly wrong); fall back to CONF_INFO if missing.
-  const confGroupId = data.team?.groups?.id || team.confId;
+  const confGroupId = IS_NBA ? null : (data.team?.groups?.id || team.confId);
   try {
     if (confGroupId) {
       const confRes = await fetch(
@@ -2168,7 +2279,7 @@ async function fetchTeam(team) {
   if (liveGame) {
     try {
       const liveRes = await fetch(
-        `https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=${liveGame.ev.id}`,
+        `${API}/summary?event=${liveGame.ev.id}`,
         { cache: 'no-store' }
       );
       if (liveRes.ok) {
@@ -2420,6 +2531,7 @@ function escHtml(str) {
 }
 
 async function loadBPI() {
+  if (IS_NBA) return;
   if (Date.now() - bpiLoadedAt < 6 * 3600 * 1000) return; // refresh every 6h
   try {
     const r = await fetch(
@@ -2464,7 +2576,7 @@ function setLiveTab(all) {
 async function loadLive() {
   try {
     const [r] = await Promise.all([
-      fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=400',
+      fetch(IS_NBA ? `${API}/scoreboard` : `${API}/scoreboard?groups=50&limit=400`,
         { cache: 'no-store' }),
       loadBPI(),
     ]);
@@ -2518,7 +2630,7 @@ function liveGameInfo(ev) {
   const ranks = sides.map(s => s.rank).filter(Boolean);
   const mine = sides.some(s => mineIds.has(s.id));
   const margin = sides.length === 2 ? Math.abs(sides[0].score - sides[1].score) : 99;
-  const late = (ev.status?.period || 0) >= 2;
+  const late = (ev.status?.period || 0) >= (IS_NBA ? 4 : 2);
   const close = late && margin <= 5;
   // Matchup quality: average BPI rank of both teams (non-D1 opponents count
   // as 400). A close second-half game moves up as if 40 spots better.
@@ -2534,7 +2646,7 @@ function liveGameInfo(ev) {
 function renderMini(g) {
   const lead = g.sides[0].score === g.sides[1]?.score ? -1 : (g.sides[0].score > g.sides[1]?.score ? 0 : 1);
   const link = g.ev.links?.find(l => (l.rel || []).includes('summary'))?.href ||
-    `https://www.espn.com/mens-college-basketball/game/_/gameId/${g.ev.id}`;
+    `https://www.espn.com/${ESPN_PATH}/game/_/gameId/${g.ev.id}`;
   const rows = g.sides.map((s, i) => {
     const badge = s.rank ? `<span class="mini-rank" title="AP rank">${s.rank}</span>`
                 : s.bpi  ? `<span class="mini-rank bpi" title="ESPN BPI rank">${s.bpi}</span>` : '';
@@ -2577,7 +2689,7 @@ function renderLiveStrip() {
     sub = `${featured.length} Top 25 · ${games.length} total`;
   } else {
     const best = rest[0];
-    sub = best ? `Best: ${best.sides.map(s => s.name).join(' vs ')}` : '';
+    sub = best ? `${IS_NBA ? 'Closest' : 'Best'}: ${best.sides.map(s => s.name).join(' vs ')}` : '';
   }
 
   const pref = liveDrawerOpen();
@@ -2593,24 +2705,31 @@ function renderLiveStrip() {
     </button>
     <div class="live-body">
       <div class="live-tabs">
-        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>Top 25 &amp; yours (${featured.length})</button>
+        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>${IS_NBA ? 'Your teams' : 'Top 25 &amp; yours'} (${featured.length})</button>
         <button class="live-tab ${showAll ? 'active' : ''}" onclick="setLiveTab(true)">All live (${games.length})</button>
       </div>
-      ${featured.length ? '' : '<div class="live-note">No Top 25 or your teams playing. Best matchups first.</div>'}
+      ${featured.length ? '' : `<div class="live-note">${IS_NBA ? 'None of your teams are playing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
-      <div class="live-legend"><b>Gold</b> = AP rank · <i>gray</i> = ESPN BPI rank${BPI_RANK.size ? '' : ' (loading)'}</div>
+      ${IS_NBA ? '' : `<div class="live-legend"><b>Gold</b> = AP rank · <i>gray</i> = ESPN BPI rank${BPI_RANK.size ? '' : ' (loading)'}</div>`}
     </div>`;
   el.hidden = false;
 }
 
 // ─── MAIN LOAD ────────────────────────────────────────────────────────────────
 async function loadAll() {
-  loadLive();
+  const livePromise = loadLive();
   const grid = document.getElementById('grid');
   if (!selectedTeams.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🏀</div><p>Select your favorite teams below to get started</p></div>`;
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🏀</div>
+      <p>Pick a lineup to get started</p>
+      <div class="celeb-row empty-packs">${packChipsHTML()}</div>
+      <a class="empty-browse" href="#team-search"
+         onclick="event.preventDefault();document.getElementById('team-search').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('team-search').focus({preventScroll:true})">or choose your own teams ↓</a>
+    </div>`;
     return;
   }
+  await livePromise; // lets schedules skip refetching for teams that aren't playing
 
   if (!grid.children.length || grid.querySelector('.empty-state')) {
     grid.innerHTML = selectedTeams.map((t, i) => {
@@ -2651,7 +2770,7 @@ async function getCategoryTeams(catId) {
     if (!ids || !ids.length) return null;
     return ids.map(id => TEAM_LIST.find(t => t.id === id)).filter(Boolean);
   }
-  return TEAM_LIST.filter(t => t.conf === catId);
+  return TEAM_LIST.filter(t => t.conf === catId || t.div === catId);
 }
 
 let activeCategory = null;
@@ -2659,6 +2778,11 @@ let activeCategory = null;
 // ─── SELECTOR UI ─────────────────────────────────────────────────────────────
 let searchQuery = '';
 let dragSrcIdx  = null;
+
+function apRankTag(t) {
+  const i = (cachedTop25Ids || []).indexOf(String(t.id));
+  return i === -1 ? '' : `<span class="option-rank">#${i + 1}</span>`;
+}
 
 function isSelected(team) { return selectedTeams.some(t => t.display === team.display); }
 
@@ -2749,7 +2873,7 @@ async function renderBrowser() {
       <div class="option-check">${sel ? '✓' : ''}</div>
       <span class="option-emoji">${t.emoji}</span>
       <div class="option-info">
-        <div class="option-name">${t.display}${liveBolt(t)}</div>
+        <div class="option-name">${apRankTag(t)}${t.display}${liveBolt(t)}</div>
         <div class="option-conf">${t.conf}</div>
       </div>
     </div>`;
@@ -2761,7 +2885,7 @@ function renderCategories() {
   const label = document.getElementById('cat-active-label');
   const confCats = buildConferenceCategories();
   const liveCat  = (LIVE_IDS.size || activeCategory === 'live') ? [{ id: 'live', label: '⚡ Live' }] : [];
-  const allCats  = [...liveCat, { id: 'top25', label: '🏆 Top 25' }, ...confCats];
+  const allCats  = [...liveCat, ...(IS_NBA ? [] : [{ id: 'top25', label: '🏆 Top 25' }]), ...confCats];
 
   row.innerHTML = allCats.map(c => {
     const isActive = activeCategory === c.id;
@@ -2863,6 +2987,11 @@ window.debugDWW = function() {
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 (async () => {
+  document.getElementById(IS_NBA ? 'tab-nba' : 'tab-ncaam').classList.add('active');
+  if (IS_NBA) {
+    document.getElementById('subtitle').textContent = 'NBA · Live Scores';
+    document.title = 'Did We Win? · NBA';
+  }
   const savedNames = loadSavedNames();
 
   // Build team list immediately from hardcoded DB — no API needed, instant
@@ -2871,13 +3000,8 @@ window.debugDWW = function() {
   // Fetch Top 25 (single API call, fast)
   await fetchTop25Ids();
 
-  // Resolve saved teams and render immediately. First-time visitors (nothing
-  // saved yet) get the default lineup; it isn't saved until they change it.
-  let firstVisit = false;
-  try { firstVisit = localStorage.getItem(STORAGE_KEY) === null; } catch {}
-  selectedTeams = firstVisit
-    ? CELEB_PACKS.find(p => p.isDefault).teams.map(findTeamByName).filter(Boolean).slice(0, 6)
-    : resolveFromSaved(savedNames);
+  // Resolve saved teams and render immediately
+  selectedTeams = resolveFromSaved(savedNames);
   window.selectedTeams = selectedTeams;
   await renderSelector();
   await loadAll();
