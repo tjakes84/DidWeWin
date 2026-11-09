@@ -396,6 +396,12 @@
       border: 1px solid rgba(251,191,36,0.22);
     }
 
+    .rank-badge.bpi-badge, .back-rank.bpi-badge {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.55);
+      border-color: rgba(255,255,255,0.12);
+    }
+
     .rec-item {
       font-size: 0.67rem;
       color: rgba(255,255,255,0.5);
@@ -2356,7 +2362,10 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
     answerHTML = `<div class="answer tbd">—</div>`;
   }
 
-  const rankHTML = apRank ? `<span class="rank-badge">#${apRank} AP</span>` : '';
+  const bpiRank = apRank ? BPI_RANK.get(String(team.id)) : null;
+  const rankHTML = apRank
+    ? `<span class="rank-badge">AP #${apRank}</span>${bpiRank ? `<span class="rank-badge bpi-badge">BPI #${bpiRank}</span>` : ''}`
+    : '';
   const recParts = [];
   if (recordStr)     recParts.push(`<span class="rec-item">${recordStr} overall</span>`);
   if (confRecordStr) recParts.push(`<span class="rec-item conf">${confRecordStr}</span>`);
@@ -2474,7 +2483,10 @@ function renderBack({ team, allGames, liveGame, apRank, recordStr, confRecordStr
     </div>`;
   }).join('');
 
-  const rankStr = apRank ? `<span class="back-rank">#${apRank} AP</span>` : '';
+  const backBpi = apRank ? BPI_RANK.get(String(team.id)) : null;
+  const rankStr = apRank
+    ? `<span class="back-rank">AP #${apRank}</span>${backBpi ? `<span class="back-rank bpi-badge">BPI #${backBpi}</span>` : ''}`
+    : '';
   const recStr  = recordStr ? `<span class="back-rec">${recordStr}</span>` : '';
   const confStr = confRecordStr ? `<span class="back-rec conf">${confRecordStr}</span>` : '';
 
