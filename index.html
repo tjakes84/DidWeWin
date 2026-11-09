@@ -915,7 +915,10 @@
     .mini-team img { width: 18px; height: 18px; object-fit: contain; flex: none; }
     .mini-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #bbb; }
     .mini-rank { font-size: 0.62rem; color: var(--live); margin-right: 0.2rem; }
-    .mini-rank.bpi { color: #6b6f78; }
+    .mini-ranks { flex: none; display: flex; flex-direction: column; align-items: flex-end;
+      line-height: 1.05; margin-right: 0.15rem; }
+    .mini-ap  { font-size: 0.56rem; color: var(--live); letter-spacing: 0.03em; }
+    .mini-bpi { font-size: 0.5rem; color: #6b6f78; letter-spacing: 0.03em; }
     .mini-score { font-variant-numeric: tabular-nums; font-weight: 500; color: #888; }
     .mini-team.lead .mini-name, .mini-team.lead .mini-score { color: #fff; }
     .mini-foot {
@@ -2648,12 +2651,15 @@ function renderMini(g) {
   const link = g.ev.links?.find(l => (l.rel || []).includes('summary'))?.href ||
     `https://www.espn.com/${ESPN_PATH}/game/_/gameId/${g.ev.id}`;
   const rows = g.sides.map((s, i) => {
-    const badge = s.rank ? `<span class="mini-rank" title="AP rank">${s.rank}</span>`
-                : s.bpi  ? `<span class="mini-rank bpi" title="ESPN BPI rank">${s.bpi}</span>` : '';
+    // Ranks only for AP Top 25 teams, stacked: "AP #10" over "BPI #9". Unranked: none.
+    const badge = s.rank
+      ? `<span class="mini-ranks"><span class="mini-ap">AP #${s.rank}</span>${s.bpi ? `<span class="mini-bpi">BPI #${s.bpi}</span>` : ''}</span>`
+      : '';
     return `
     <div class="mini-team ${i === lead ? 'lead' : ''}">
       ${s.logo ? `<img src="${escHtml(s.logo)}" alt="" loading="lazy">` : ''}
-      <span class="mini-name">${badge}${escHtml(s.name)}</span>
+      <span class="mini-name">${escHtml(s.name)}</span>
+      ${badge}
       <span class="mini-score">${s.score}</span>
     </div>`;
   }).join('');
@@ -2710,7 +2716,7 @@ function renderLiveStrip() {
       </div>
       ${featured.length ? '' : `<div class="live-note">${IS_NBA ? 'None of your teams are playing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
-      ${IS_NBA ? '' : `<div class="live-legend"><b>Gold</b> = AP rank · <i>gray</i> = ESPN BPI rank${BPI_RANK.size ? '' : ' (loading)'}</div>`}
+      ${IS_NBA ? '' : `<div class="live-legend">BPI = ESPN power rank · unranked games sorted by BPI matchup</div>`}
     </div>`;
   el.hidden = false;
 }
