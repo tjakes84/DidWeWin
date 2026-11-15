@@ -1013,6 +1013,8 @@
     /* Upset alerts + ties */
     .mini.upset { border-color: rgba(248,113,113,0.6); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
     .mini-tag.upset { color: #f87171; font-weight: 500; }
+    .mini { overflow: hidden; }
+    .mini-foot { flex-wrap: wrap; row-gap: 0.15rem; }
     .upset-chip { font-family: 'DM Sans', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
       vertical-align: middle; padding: 0.12rem 0.45rem; border-radius: 20px;
       background: rgba(248,113,113,0.18); color: #fca5a5; border: 1px solid rgba(248,113,113,0.35); }
@@ -2842,7 +2844,7 @@ function renderMini(g) {
     </div>`;
   }).join('');
   const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
-  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset alert</span>'
+  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset</span>'
     : g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
   return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
