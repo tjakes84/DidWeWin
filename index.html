@@ -2829,10 +2829,10 @@ function renderMini(g) {
   const link = g.ev.links?.find(l => (l.rel || []).includes('summary'))?.href ||
     `https://www.espn.com/${ESPN_PATH}/game/_/gameId/${g.ev.id}`;
   const rows = g.sides.map((s, i) => {
-    // Ranks only for AP Top 25 teams, stacked: "AP #10" over "BPI #9". Unranked: none.
+    // AP Top 25 teams: "AP #10" stacked over "BPI #9". Everyone else: just "BPI #112".
     const badge = s.rank
       ? `<span class="mini-ranks"><span class="mini-ap">AP #${s.rank}</span>${s.bpi ? `<span class="mini-bpi">BPI #${s.bpi}</span>` : ''}</span>`
-      : '';
+      : s.bpi ? `<span class="mini-ranks"><span class="mini-bpi">BPI #${s.bpi}</span></span>` : '';
     return `
     <div class="mini-team ${i === lead ? 'lead' : ''}">
       ${s.logo ? `<img src="${escHtml(s.logo)}" alt="" loading="lazy">` : ''}
