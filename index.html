@@ -1010,6 +1010,17 @@
       .sched-opp-rank { font-size: 0.6rem; }
     }
 
+    /* Upset alerts + ties */
+    .mini.upset { border-color: rgba(248,113,113,0.6); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
+    .mini-tag.upset { color: #f87171; font-weight: 500; }
+    .upset-chip { font-family: 'DM Sans', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
+      vertical-align: middle; padding: 0.12rem 0.45rem; border-radius: 20px;
+      background: rgba(248,113,113,0.18); color: #fca5a5; border: 1px solid rgba(248,113,113,0.35); }
+    .upset-chip.dog { background: rgba(251,191,36,0.16); color: var(--live); border-color: rgba(251,191,36,0.3); }
+    .answer .upset-chip { display: block; width: fit-content; margin-top: 0.35rem; white-space: nowrap; line-height: 1.4; }
+    .answer.tie { color: #cbd5e1; }
+    .front-badge.t, .sched-result.t { background: rgba(203,213,225,0.15); color: #cbd5e1; }
+
     /* League switch */
     .league-tabs { display: inline-flex; gap: 0.3rem; margin-top: 0.9rem; padding: 0.2rem;
       border: 1px solid #2a2a2a; border-radius: 20px; }
@@ -1041,6 +1052,7 @@
   <nav class="league-tabs">
     <a href="./" id="tab-ncaam">College</a>
     <a href="./?league=nba" id="tab-nba">NBA</a>
+    <a href="./?league=nfl" id="tab-nfl">NFL</a>
   </nav>
   <p class="subtitle" id="subtitle">Men's Basketball · Live Scores</p>
   <p class="refresh-info">Auto-refreshes every 60s · updated: <span id="last-updated">—</span><button id="refresh-btn" onclick="manualRefresh()">↻ now</button></p>
@@ -1093,10 +1105,51 @@
 <script>
 // ─── LEAGUE ──────────────────────────────────────────────────────────────────
 // didwewin.net = men's college basketball; didwewin.net/?league=nba = NBA.
-const LEAGUE   = /(^|[?&])league=nba\b/i.test(location.search) ? 'nba' : 'ncaam';
+const LEAGUE   = /(^|[?&])league=nba\b/i.test(location.search) ? 'nba'
+               : /(^|[?&])league=nfl\b/i.test(location.search) ? 'nfl' : 'ncaam';
 const IS_NBA   = LEAGUE === 'nba';
-const ESPN_PATH = IS_NBA ? 'nba' : 'mens-college-basketball';
-const API = `https://site.api.espn.com/apis/site/v2/sports/basketball/${ESPN_PATH}`;
+const IS_NFL   = LEAGUE === 'nfl';
+const IS_PRO   = IS_NBA || IS_NFL;           // no AP poll / BPI; quarters
+const SPORT    = IS_NFL ? 'football' : 'basketball';
+const ESPN_PATH = IS_NBA ? 'nba' : IS_NFL ? 'nfl' : 'mens-college-basketball';
+const API = `https://site.api.espn.com/apis/site/v2/sports/${SPORT}/${ESPN_PATH}`;
+const LEAGUE_EMOJI = IS_NFL ? '🏈' : '🏀';
+
+// NFL teams (ESPN ids). conf = AFC/NFC, div = division.
+const NFL_TEAMS = [
+  { id:'22', loc:'Arizona',       name:'Cardinals',  abbr:'ARI', conf:'NFC', div:'NFC West',  emoji:'🐦' },
+  { id:'1',  loc:'Atlanta',       name:'Falcons',    abbr:'ATL', conf:'NFC', div:'NFC South', emoji:'🦅' },
+  { id:'33', loc:'Baltimore',     name:'Ravens',     abbr:'BAL', conf:'AFC', div:'AFC North', emoji:'🐦‍⬛' },
+  { id:'2',  loc:'Buffalo',       name:'Bills',      abbr:'BUF', conf:'AFC', div:'AFC East',  emoji:'🦬' },
+  { id:'29', loc:'Carolina',      name:'Panthers',   abbr:'CAR', conf:'NFC', div:'NFC South', emoji:'🐆' },
+  { id:'3',  loc:'Chicago',       name:'Bears',      abbr:'CHI', conf:'NFC', div:'NFC North', emoji:'🐻' },
+  { id:'4',  loc:'Cincinnati',    name:'Bengals',    abbr:'CIN', conf:'AFC', div:'AFC North', emoji:'🐅' },
+  { id:'5',  loc:'Cleveland',     name:'Browns',     abbr:'CLE', conf:'AFC', div:'AFC North', emoji:'🐶' },
+  { id:'6',  loc:'Dallas',        name:'Cowboys',    abbr:'DAL', conf:'NFC', div:'NFC East',  emoji:'⭐' },
+  { id:'7',  loc:'Denver',        name:'Broncos',    abbr:'DEN', conf:'AFC', div:'AFC West',  emoji:'🐎' },
+  { id:'8',  loc:'Detroit',       name:'Lions',      abbr:'DET', conf:'NFC', div:'NFC North', emoji:'🦁' },
+  { id:'9',  loc:'Green Bay',     name:'Packers',    abbr:'GB',  conf:'NFC', div:'NFC North', emoji:'🧀' },
+  { id:'34', loc:'Houston',       name:'Texans',     abbr:'HOU', conf:'AFC', div:'AFC South', emoji:'🤠' },
+  { id:'11', loc:'Indianapolis',  name:'Colts',      abbr:'IND', conf:'AFC', div:'AFC South', emoji:'🐴' },
+  { id:'30', loc:'Jacksonville',  name:'Jaguars',    abbr:'JAX', conf:'AFC', div:'AFC South', emoji:'🐾' },
+  { id:'12', loc:'Kansas City',   name:'Chiefs',     abbr:'KC',  conf:'AFC', div:'AFC West',  emoji:'🏹' },
+  { id:'13', loc:'Las Vegas',     name:'Raiders',    abbr:'LV',  conf:'AFC', div:'AFC West',  emoji:'🏴‍☠️' },
+  { id:'24', loc:'Los Angeles',   name:'Chargers',   abbr:'LAC', conf:'AFC', div:'AFC West',  emoji:'🔋' },
+  { id:'14', loc:'Los Angeles',   name:'Rams',       abbr:'LAR', conf:'NFC', div:'NFC West',  emoji:'🐏' },
+  { id:'15', loc:'Miami',         name:'Dolphins',   abbr:'MIA', conf:'AFC', div:'AFC East',  emoji:'🐬' },
+  { id:'16', loc:'Minnesota',     name:'Vikings',    abbr:'MIN', conf:'NFC', div:'NFC North', emoji:'⚔️' },
+  { id:'17', loc:'New England',   name:'Patriots',   abbr:'NE',  conf:'AFC', div:'AFC East',  emoji:'🇺🇸' },
+  { id:'18', loc:'New Orleans',   name:'Saints',     abbr:'NO',  conf:'NFC', div:'NFC South', emoji:'⚜️' },
+  { id:'19', loc:'New York',      name:'Giants',     abbr:'NYG', conf:'NFC', div:'NFC East',  emoji:'🗽' },
+  { id:'20', loc:'New York',      name:'Jets',       abbr:'NYJ', conf:'AFC', div:'AFC East',  emoji:'✈️' },
+  { id:'21', loc:'Philadelphia',  name:'Eagles',     abbr:'PHI', conf:'NFC', div:'NFC East',  emoji:'🦅' },
+  { id:'23', loc:'Pittsburgh',    name:'Steelers',   abbr:'PIT', conf:'AFC', div:'AFC North', emoji:'⚙️' },
+  { id:'25', loc:'San Francisco', name:'49ers',      abbr:'SF',  conf:'NFC', div:'NFC West',  emoji:'⛏️' },
+  { id:'26', loc:'Seattle',       name:'Seahawks',   abbr:'SEA', conf:'NFC', div:'NFC West',  emoji:'🌊' },
+  { id:'27', loc:'Tampa Bay',     name:'Buccaneers', abbr:'TB',  conf:'NFC', div:'NFC South', emoji:'🦜' },
+  { id:'10', loc:'Tennessee',     name:'Titans',     abbr:'TEN', conf:'AFC', div:'AFC South', emoji:'🔱' },
+  { id:'28', loc:'Washington',    name:'Commanders', abbr:'WSH', conf:'NFC', div:'NFC East',  emoji:'🎖️' },
+];
 
 // NBA teams (ESPN ids). div = division.
 const NBA_TEAMS = [
@@ -1952,10 +2005,10 @@ const CONF_INFO = {
 };
 
 async function buildTeamListFromESPN() {
-  if (IS_NBA) {
-    TEAM_LIST = NBA_TEAMS.map(t => ({
+  if (IS_PRO) {
+    TEAM_LIST = (IS_NFL ? NFL_TEAMS : NBA_TEAMS).map(t => ({
       id: t.id, display: t.name, short: t.name, emoji: t.emoji,
-      conf: t.conf, div: t.div, confFull: t.conf + 'ern Conference', confId: '',
+      conf: t.conf, div: t.div, confFull: IS_NFL ? t.conf : t.conf + 'ern Conference', confId: '',
       vibe: 'love',
       aliases: [t.loc.toLowerCase(), `${t.loc} ${t.name}`.toLowerCase(), t.abbr.toLowerCase()],
       _espnLocation: t.loc,
@@ -2030,6 +2083,10 @@ async function verifyIdsFromESPN() {
 
 // Build conference filter categories from live TEAM_LIST
 function buildConferenceCategories() {
+  if (IS_NFL) {
+    return ['AFC', 'NFC', 'AFC East', 'AFC North', 'AFC South', 'AFC West',
+            'NFC East', 'NFC North', 'NFC South', 'NFC West'].map(c => ({ id: c, label: c }));
+  }
   if (IS_NBA) {
     return ['East', 'West', 'Atlantic', 'Central', 'Southeast', 'Northwest', 'Pacific', 'Southwest']
       .map(c => ({ id: c, label: c }));
@@ -2083,7 +2140,13 @@ const NBA_PACKS = [
   { name: 'Central', avatar: '🧭', title: 'Central Division',
     teams: ['Bulls', 'Cavaliers', 'Pistons', 'Pacers', 'Bucks'] },
 ];
-const CELEB_PACKS = IS_NBA ? NBA_PACKS : NCAA_PACKS;
+const NFL_PACKS = [
+  { name: 'Starter', avatar: '🏈', title: 'Starter lineup',
+    teams: ['Bears', 'Packers', 'Lions', 'Vikings', 'Chiefs', 'Eagles'] },
+  { name: 'NFC North', avatar: '🧊', title: 'NFC North',
+    teams: ['Bears', 'Packers', 'Lions', 'Vikings'] },
+];
+const CELEB_PACKS = IS_NFL ? NFL_PACKS : IS_NBA ? NBA_PACKS : NCAA_PACKS;
 
 function findTeamByName(name) {
   const lower = name.toLowerCase();
@@ -2119,9 +2182,12 @@ function packChipsHTML() {
 // ─── AP RANKINGS ──────────────────────────────────────────────────────────────
 let cachedTop25Ids = null;
 
+let top25At = 0;
 async function fetchTop25Ids() {
-  if (IS_NBA) return [];
-  if (cachedTop25Ids) return cachedTop25Ids;
+  if (IS_PRO) return [];
+  // Cached for an hour; if a fetch fails we keep the last good list and the
+  // next refresh tries again (a single failed load used to hide ranks for good).
+  if (cachedTop25Ids && Date.now() - top25At < 60 * 60 * 1000) return cachedTop25Ids;
   try {
     const r = await fetch(
       `${API}/rankings`,
@@ -2137,16 +2203,17 @@ async function fetchTop25Ids() {
       .sort((a, b) => a.current - b.current)
       .map(rk => String(rk.team?.id))
       .filter(Boolean);
+    top25At = Date.now();
     return cachedTop25Ids;
   } catch(e) {
     console.warn('Rankings fetch failed:', e);
-    return null;
+    return cachedTop25Ids;
   }
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 // v3 key — avoids loading corrupt old hardcoded-ID data
-const STORAGE_KEY = IS_NBA ? 'dww_nba_teams_v1' : 'dww_selected_teams_v3';
+const STORAGE_KEY = IS_NFL ? 'dww_nfl_teams_v1' : IS_NBA ? 'dww_nba_teams_v1' : 'dww_selected_teams_v3';
 
 function loadSavedNames() {
   try {
@@ -2203,7 +2270,7 @@ function periodLabel(comp) {
   const s = comp.status;
   if (!s) return '';
   const p = s.period || 0;
-  const half = IS_NBA
+  const half = IS_PRO
     ? (p <= 4 ? `Q${p}` : (p === 5 ? 'OT' : `${p - 4}OT`))
     : (p === 1 ? '1st Half' : p === 2 ? '2nd Half' : 'OT');
   const clock = s.displayClock;
@@ -2261,10 +2328,10 @@ async function fetchTeam(team) {
   const totalRec  = recItems.find(r => r.type === 'total') || recItems[0];
   const recordStr = data.team?.recordSummary || totalRec?.summary || '';
 
-  let confRecordStr = IS_NBA ? (data.team?.standingSummary || '') : '';
+  let confRecordStr = IS_PRO ? (data.team?.standingSummary || '') : '';
   // Use the conference group ESPN reports for this team (the hardcoded
   // CONF_INFO ids were mostly wrong); fall back to CONF_INFO if missing.
-  const confGroupId = IS_NBA ? null : (data.team?.groups?.id || team.confId);
+  const confGroupId = IS_PRO ? null : (data.team?.groups?.id || team.confId);
   try {
     if (confGroupId) {
       const confRes = await fetch(
@@ -2300,6 +2367,13 @@ async function fetchTeam(team) {
   }
 
   return { team, lastCompleted, liveGame, nextGame, allGames, recordStr, confRecordStr, apRank };
+}
+
+// A finished game where neither side won (NFL ties)
+function isTie(comp, tid) {
+  const me = getMe(comp, tid), opp = getOpp(comp, tid);
+  return me?.winner !== true && opp?.winner !== true &&
+    String(extractScore(me)) === String(extractScore(opp)) && extractScore(me) !== '';
 }
 
 function getOppRank(comp, teamId) {
@@ -2348,16 +2422,22 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
       ? (myScoreN > oppScoreN ? ' <span class="winning-tag">▲ Winning</span>'
        : myScoreN < oppScoreN ? ' <span class="winning-tag losing">▼ Losing</span>'
        : ' <span class="winning-tag tied">Tied</span>') : '';
-    answerHTML      = `<div class="answer live">LIVE</div>`;
+    const upsetRole = UPSET_BY_TEAM.get(String(tid));
+    const upsetChip = upsetRole === 'fav' ? ' <span class="upset-chip">🚨 Upset alert</span>'
+                    : upsetRole === 'dog' ? ' <span class="upset-chip dog">🔥 Pulling the upset</span>' : '';
+    answerHTML      = `<div class="answer live">LIVE${upsetChip}</div>`;
     liveDetailsHTML = `
       <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
       <div class="live-opponent">${atStr}${rankBit} <strong>${oppName}</strong></div>`;
   } else if (lastCompleted) {
     const me  = getMe(lastCompleted.comp, tid);
     const won = me?.winner === true;
+    const tied = !won && isTie(lastCompleted.comp, tid);
     const yesEmoji = isDook ? '🤢' : isHate ? '😒' : '🎉';
     const noEmoji  = isDook ? '🎉🎊🙌' : isHate ? '😂' : '😬';
-    answerHTML = `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES ' + yesEmoji : 'NO ' + noEmoji}</div>`;
+    answerHTML = tied
+      ? `<div class="answer tie">TIE 🤝</div>`
+      : `<div class="answer ${won ? 'yes' : 'no'}">${won ? 'YES ' + yesEmoji : 'NO ' + noEmoji}</div>`;
   } else {
     answerHTML = `<div class="answer tbd">—</div>`;
   }
@@ -2386,7 +2466,7 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
         <div class="front-game-label">Last game</div>
         <div class="front-game-line">
           ${when} · ${atStr}${oppRank ? ` <span class="opp-rank">#${oppRank}</span>` : ''} <strong>${oppName}</strong>
-          <span class="front-badge ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+          <span class="front-badge ${won ? 'w' : isTie(comp, tid) ? 't' : 'l'}">${won ? 'W' : isTie(comp, tid) ? 'T' : 'L'} ${myS}–${oppS}</span>
         </div>
       </div>`;
   }
@@ -2448,7 +2528,7 @@ function renderBack({ team, allGames, liveGame, apRank, recordStr, confRecordStr
     return `<div class="sched-row">
       <span class="sched-date">${when}</span>
       <span class="sched-opp">${atStr} ${rStr}${oppName}</span>
-      <span class="sched-result ${won ? 'w' : 'l'}">${won ? 'W' : 'L'} ${myS}–${oppS}</span>
+      <span class="sched-result ${won ? 'w' : isTie(comp, tid) ? 't' : 'l'}">${won ? 'W' : isTie(comp, tid) ? 'T' : 'L'} ${myS}–${oppS}</span>
     </div>`;
   }).join('');
 
@@ -2546,7 +2626,7 @@ function escHtml(str) {
 }
 
 async function loadBPI() {
-  if (IS_NBA) return;
+  if (IS_PRO) return;
   if (Date.now() - bpiLoadedAt < 6 * 3600 * 1000) return; // refresh every 6h
   try {
     const r = await fetch(
@@ -2591,7 +2671,7 @@ function setLiveTab(all) {
 async function loadLive() {
   try {
     const [r] = await Promise.all([
-      fetch(IS_NBA ? `${API}/scoreboard` : `${API}/scoreboard?groups=50&limit=400`,
+      fetch(IS_PRO ? `${API}/scoreboard` : `${API}/scoreboard?groups=50&limit=400`,
         { cache: 'no-store' }),
       loadBPI(),
     ]);
@@ -2609,6 +2689,8 @@ async function loadLive() {
   LIVE_IDS = newIds;
 
   renderLiveStrip();
+  // Fill in betting favorites for games already in progress, then refresh the drawer
+  fetchLiveFavorites(lastLiveEvents).then(n => { if (n) renderLiveStrip(); });
   if (changed) {
     // Refresh ⚡ markers without rebuilding the picker (keeps scroll position)
     document.querySelectorAll('[data-tid]').forEach(el => {
@@ -2645,17 +2727,101 @@ function liveGameInfo(ev) {
   const ranks = sides.map(s => s.rank).filter(Boolean);
   const mine = sides.some(s => mineIds.has(s.id));
   const margin = sides.length === 2 ? Math.abs(sides[0].score - sides[1].score) : 99;
-  const late = (ev.status?.period || 0) >= (IS_NBA ? 4 : 2);
-  const close = late && margin <= 5;
+  const period = ev.status?.period || 0;
+  const late = period >= (IS_PRO ? 4 : 2);
+  const close = late && margin <= (IS_NFL ? 8 : 5);
+  const upset = upsetInfo(ev, sides, period);
   // Matchup quality: average BPI rank of both teams (non-D1 opponents count
   // as 400). A close second-half game moves up as if 40 spots better.
   const avgBpi = sides.reduce((sum, s) => sum + (s.bpi || 400), 0) / Math.max(1, sides.length);
   return {
-    ev, sides, mine, margin, close,
+    ev, sides, mine, margin, close, upset,
     ranked: ranks.length > 0,
     bestRank: ranks.length ? Math.min(...ranks) : 99,
     quality: avgBpi - (close ? 40 : 0),
   };
+}
+
+// ─── UPSET ALERTS ────────────────────────────────────────────────────────────
+// The favorite is losing late. Favorite = the betting favorite when ESPN has a
+// line (remembered once the game starts and the line disappears); otherwise a
+// ranked team vs. a much lower/unranked one, a big BPI gap (college), or a
+// much better record (pros).
+const FAV_CACHE = new Map();       // game id -> favorite team id
+try { Object.entries(JSON.parse(sessionStorage.getItem('dww_fav_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_CACHE.set(k, v)); } catch {}
+const FAV_CHECKED = new Set();
+
+// The scoreboard drops the betting line once a game starts, so for live games
+// we look up the pregame line once from ESPN's small odds feed (~10 KB/game).
+async function fetchLiveFavorites(events) {
+  const need = events.filter(e => !FAV_CACHE.has(e.id) && !FAV_CHECKED.has(e.id) &&
+    !(e.competitions?.[0]?.odds || []).length);
+  if (!need.length) return 0;
+  const path = IS_NFL ? 'football/leagues/nfl' : IS_NBA ? 'basketball/leagues/nba' : 'basketball/leagues/mens-college-basketball';
+  let i = 0, found = 0;
+  const worker = async () => {
+    while (i < need.length) {
+      const e = need[i++];
+      FAV_CHECKED.add(e.id);
+      try {
+        const r = await fetch(`https://sports.core.api.espn.com/v2/sports/${path}/events/${e.id}/competitions/${e.id}/odds`);
+        if (!r.ok) continue;
+        const it = ((await r.json()).items || []).find(x => x.homeTeamOdds?.favorite || x.awayTeamOdds?.favorite);
+        if (!it) continue;
+        const ha = it.homeTeamOdds?.favorite ? 'home' : 'away';
+        const id = String((e.competitions?.[0]?.competitors || []).find(c => c.homeAway === ha)?.team?.id || '');
+        if (id) { FAV_CACHE.set(e.id, id); found++; }
+      } catch {}
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  try { sessionStorage.setItem('dww_fav_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_CACHE))); } catch {}
+  return found;
+}
+let UPSET_BY_TEAM = new Map();     // team id -> 'fav' | 'dog' (for team cards)
+
+function winPct(c) {
+  const rec = (c.records || []).find(r => r.type === 'total' || r.name === 'overall') || (c.records || [])[0];
+  const [w, l, t] = String(rec?.summary || '').split('-').map(n => parseInt(n, 10) || 0);
+  const gp = w + l + t;
+  return gp >= 4 ? (w + t / 2) / gp : null;
+}
+
+function gameFavorite(ev, sides) {
+  const comp = ev.competitions?.[0] || {};
+  const odds = (comp.odds || [])[0];
+  const byHA = ha => String((comp.competitors || []).find(c => c.homeAway === ha)?.team?.id || '');
+  let fav = odds?.homeTeamOdds?.favorite ? byHA('home') : odds?.awayTeamOdds?.favorite ? byHA('away') : '';
+  if (fav) { FAV_CACHE.set(ev.id, fav); return fav; }
+  if (FAV_CACHE.has(ev.id)) return FAV_CACHE.get(ev.id);
+  const [a, b] = sides;
+  if (!a || !b) return null;
+  if (!IS_PRO) {
+    if (a.rank && !b.rank) return a.id;
+    if (b.rank && !a.rank) return b.id;
+    if (a.rank && b.rank && Math.abs(a.rank - b.rank) >= 10) return a.rank < b.rank ? a.id : b.id;
+    if (a.bpi && b.bpi && Math.abs(a.bpi - b.bpi) >= 60) return a.bpi < b.bpi ? a.id : b.id;
+    return null;
+  }
+  const comps = comp.competitors || [];
+  const pa = winPct(comps.find(c => String(c.team?.id) === a.id) || {});
+  const pb = winPct(comps.find(c => String(c.team?.id) === b.id) || {});
+  if (pa != null && pb != null && Math.abs(pa - pb) >= 0.25) return pa > pb ? a.id : b.id;
+  return null;
+}
+
+function upsetInfo(ev, sides, period) {
+  const favId = gameFavorite(ev, sides);
+  if (!favId || sides.length !== 2) return null;
+  const fav = sides.find(s => s.id === favId), dog = sides.find(s => s.id !== favId);
+  if (!fav || !dog) return null;
+  const deficit = dog.score - fav.score;
+  if (deficit <= 0) return null;
+  const halftime = /halftime/i.test(ev.status?.type?.description || ev.status?.type?.shortDetail || '');
+  const alert = IS_NFL ? (period >= 4 || (period >= 3 && deficit >= 3) || (halftime && deficit >= 10))
+              : IS_NBA ? (period >= 4 || (period >= 3 && deficit >= 5))
+              : (period >= 2 || halftime);
+  return alert ? { favId: fav.id, dogId: dog.id, favName: fav.name, dogName: dog.name, deficit } : null;
 }
 
 function renderMini(g) {
@@ -2676,8 +2842,9 @@ function renderMini(g) {
     </div>`;
   }).join('');
   const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
-  const tag = g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
-  return `<a class="mini ${g.mine ? 'mine' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
+  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset alert</span>'
+    : g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
+  return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
     <div class="mini-foot"><span><span class="dot"></span>${status}</span>${tag}</div>
   </a>`;
@@ -2688,11 +2855,17 @@ function renderLiveStrip() {
   const games = lastLiveEvents.map(liveGameInfo);
   if (!games.length) { el.hidden = true; el.innerHTML = ''; return; }
 
-  // Featured: your teams first, then by best AP rank, then closest
-  const featured = games.filter(g => g.mine || g.ranked)
-    .sort((a, b) => (b.mine - a.mine) || (a.bestRank - b.bestRank) || (a.margin - b.margin));
-  // Everything else: best BPI matchup first
-  const rest = games.filter(g => !(g.mine || g.ranked))
+  // Remember which of your teams are in an upset spot, for the team cards
+  UPSET_BY_TEAM = new Map();
+  games.forEach(g => { if (g.upset) { UPSET_BY_TEAM.set(g.upset.favId, 'fav'); UPSET_BY_TEAM.set(g.upset.dogId, 'dog'); } });
+  const upsets = games.filter(g => g.upset).length;
+
+  // Featured: your teams first, then upset alerts, then by best AP rank, then closest
+  const isFeatured = g => g.mine || g.ranked || g.upset;
+  const featured = games.filter(isFeatured)
+    .sort((a, b) => (b.mine - a.mine) || (!!b.upset - !!a.upset) || (a.bestRank - b.bestRank) || (a.margin - b.margin));
+  // Everything else: best BPI matchup first (closest first for the pros)
+  const rest = games.filter(g => !isFeatured(g))
     .sort((a, b) => (a.quality - b.quality) || (a.margin - b.margin));
 
   const showAll = liveShowAll === null ? !featured.length : (liveShowAll || !featured.length);
@@ -2703,15 +2876,19 @@ function renderLiveStrip() {
   if (mineGame) {
     const [x, y] = mineGame.sides;
     sub = `${x.name} ${x.score}–${y.score} ${y.name} · ${mineGame.ev.status?.type?.shortDetail || ''}`;
+  } else if (upsets) {
+    const u = games.find(g => g.upset).upset;
+    sub = `${u.dogName} leads ${u.favName} by ${u.deficit}`;
   } else if (featured.length) {
     sub = `${featured.length} Top 25 · ${games.length} total`;
   } else {
     const best = rest[0];
-    sub = best ? `${IS_NBA ? 'Closest' : 'Best'}: ${best.sides.map(s => s.name).join(' vs ')}` : '';
+    sub = best ? `${IS_PRO ? 'Closest' : 'Best'}: ${best.sides.map(s => s.name).join(' vs ')}` : '';
   }
+  if (upsets) sub = `🚨 ${upsets} upset alert${upsets === 1 ? '' : 's'} · ${sub}`;
 
   const pref = liveDrawerOpen();
-  const open = pref === null ? featured.length > 0 : pref;
+  const open = pref === null ? (featured.length > 0 || upsets > 0) : pref;
 
   el.className = 'live-strip' + (open ? ' open' : '');
   el.innerHTML = `
@@ -2723,12 +2900,12 @@ function renderLiveStrip() {
     </button>
     <div class="live-body">
       <div class="live-tabs">
-        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>${IS_NBA ? 'Your teams' : 'Top 25 &amp; yours'} (${featured.length})</button>
+        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>${IS_PRO ? 'Yours &amp; upsets' : 'Top 25 &amp; yours'} (${featured.length})</button>
         <button class="live-tab ${showAll ? 'active' : ''}" onclick="setLiveTab(true)">All live (${games.length})</button>
       </div>
-      ${featured.length ? '' : `<div class="live-note">${IS_NBA ? 'None of your teams are playing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
+      ${featured.length ? '' : `<div class="live-note">${IS_PRO ? 'None of your teams are playing and no upsets brewing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
-      ${IS_NBA ? '' : `<div class="live-legend">BPI = ESPN power rank · unranked games sorted by BPI matchup</div>`}
+      <div class="live-legend">🚨 Upset alert = the favorite is losing late${IS_PRO ? '' : ' · BPI = ESPN power rank · unranked games sorted by BPI matchup'}</div>
     </div>`;
   el.hidden = false;
 }
@@ -2739,7 +2916,7 @@ async function loadAll() {
   const grid = document.getElementById('grid');
   if (!selectedTeams.length) {
     grid.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🏀</div>
+      <div class="empty-icon">${LEAGUE_EMOJI}</div>
       <p>Pick a lineup to get started</p>
       <div class="celeb-row empty-packs">${packChipsHTML()}</div>
       <a class="empty-browse" href="#team-search"
@@ -2748,6 +2925,8 @@ async function loadAll() {
     return;
   }
   await livePromise; // lets schedules skip refetching for teams that aren't playing
+  // Make sure AP ranks are loaded before cards render (retries if an earlier try failed)
+  if (!IS_PRO) await Promise.race([fetchTop25Ids(), new Promise(r => setTimeout(r, 4000))]);
 
   if (!grid.children.length || grid.querySelector('.empty-state')) {
     grid.innerHTML = selectedTeams.map((t, i) => {
@@ -2903,7 +3082,7 @@ function renderCategories() {
   const label = document.getElementById('cat-active-label');
   const confCats = buildConferenceCategories();
   const liveCat  = (LIVE_IDS.size || activeCategory === 'live') ? [{ id: 'live', label: '⚡ Live' }] : [];
-  const allCats  = [...liveCat, ...(IS_NBA ? [] : [{ id: 'top25', label: '🏆 Top 25' }]), ...confCats];
+  const allCats  = [...liveCat, ...(IS_PRO ? [] : [{ id: 'top25', label: '🏆 Top 25' }]), ...confCats];
 
   row.innerHTML = allCats.map(c => {
     const isActive = activeCategory === c.id;
@@ -3005,10 +3184,12 @@ window.debugDWW = function() {
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 (async () => {
-  document.getElementById(IS_NBA ? 'tab-nba' : 'tab-ncaam').classList.add('active');
-  if (IS_NBA) {
-    document.getElementById('subtitle').textContent = 'NBA · Live Scores';
-    document.title = 'Did We Win? · NBA';
+  document.getElementById('tab-' + LEAGUE).classList.add('active');
+  if (IS_PRO) {
+    const label = IS_NFL ? 'NFL' : 'NBA';
+    document.getElementById('subtitle').textContent = `${label} · Live Scores`;
+    document.title = `Did We Win? · ${label}`;
+    document.querySelectorAll('.empty-icon').forEach(e => { e.textContent = LEAGUE_EMOJI; });
   }
   const savedNames = loadSavedNames();
 
