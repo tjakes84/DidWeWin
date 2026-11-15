@@ -2878,7 +2878,7 @@ function renderLiveStrip() {
     sub = `${x.name} ${x.score}–${y.score} ${y.name} · ${mineGame.ev.status?.type?.shortDetail || ''}`;
   } else if (upsets) {
     const u = games.find(g => g.upset).upset;
-    sub = `${u.dogName} leads ${u.favName} by ${u.deficit}`;
+    sub = `${u.dogName} up ${u.deficit} on ${u.favName}`;
   } else if (featured.length) {
     sub = `${featured.length} Top 25 · ${games.length} total`;
   } else {
