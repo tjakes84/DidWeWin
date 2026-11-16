@@ -2917,10 +2917,10 @@ function renderLiveStrip() {
     </button>
     <div class="live-body">
       <div class="live-tabs">
-        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>${IS_PRO ? 'Yours &amp; upsets' : 'Top 25 &amp; yours'} (${featured.length})</button>
+        <button class="live-tab ${!showAll ? 'active' : ''}" onclick="setLiveTab(false)" ${featured.length ? '' : 'disabled'}>${IS_PRO ? 'Yours &amp; upsets' : 'Top 25, yours &amp; upsets'} (${featured.length})</button>
         <button class="live-tab ${showAll ? 'active' : ''}" onclick="setLiveTab(true)">All live (${games.length})</button>
       </div>
-      ${featured.length ? '' : `<div class="live-note">${IS_PRO ? 'None of your teams are playing and no upsets brewing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
+      ${featured.length ? '' : `<div class="live-note">${IS_PRO ? 'None of your teams are playing and no upsets brewing. Closest games first.' : 'No Top 25, your teams or upset alerts right now. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
       <div class="live-legend">🚨 Upset alert = the underdog is ahead, tied, or within 3 late${IS_PRO ? '' : ' · BPI = ESPN power rank · unranked games sorted by BPI matchup'}</div>
     </div>`;
