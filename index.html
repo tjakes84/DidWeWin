@@ -2746,9 +2746,10 @@ function liveGameInfo(ev) {
 
 // ─── UPSET ALERTS ────────────────────────────────────────────────────────────
 // The favorite is losing late. Favorite = the betting favorite when ESPN has a
-// line (remembered once the game starts and the line disappears); otherwise a
-// ranked team vs. a much lower/unranked one, a big BPI gap (college), or a
-// much better record (pros).
+// line (it already accounts for home court; looked up once the game starts).
+// With no line, any edge counts, no minimum gap: AP rank first (ranked beats
+// unranked), then ESPN BPI rank for every D1 team (#200 is favored over #300;
+// a D1 team over a non-D1 one), and for the pros the better record.
 const FAV_CACHE = new Map();       // game id -> favorite team id
 try { Object.entries(JSON.parse(sessionStorage.getItem('dww_fav_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_CACHE.set(k, v)); } catch {}
 const FAV_CHECKED = new Set();
@@ -2801,14 +2802,16 @@ function gameFavorite(ev, sides) {
   if (!IS_PRO) {
     if (a.rank && !b.rank) return a.id;
     if (b.rank && !a.rank) return b.id;
-    if (a.rank && b.rank && Math.abs(a.rank - b.rank) >= 10) return a.rank < b.rank ? a.id : b.id;
-    if (a.bpi && b.bpi && Math.abs(a.bpi - b.bpi) >= 60) return a.bpi < b.bpi ? a.id : b.id;
+    if (a.rank && b.rank && a.rank !== b.rank) return a.rank < b.rank ? a.id : b.id;
+    if (a.bpi && b.bpi && a.bpi !== b.bpi) return a.bpi < b.bpi ? a.id : b.id;
+    if (a.bpi && !b.bpi) return a.id;   // D1 vs. non-D1 opponent
+    if (b.bpi && !a.bpi) return b.id;
     return null;
   }
   const comps = comp.competitors || [];
   const pa = winPct(comps.find(c => String(c.team?.id) === a.id) || {});
   const pb = winPct(comps.find(c => String(c.team?.id) === b.id) || {});
-  if (pa != null && pb != null && Math.abs(pa - pb) >= 0.25) return pa > pb ? a.id : b.id;
+  if (pa != null && pb != null && pa !== pb) return pa > pb ? a.id : b.id;
   return null;
 }
 
