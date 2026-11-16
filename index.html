@@ -2320,6 +2320,8 @@ async function fetchTeam(team) {
     const comp = ev.competitions?.[0];
     if (!comp) continue;
     const state = comp.status?.type?.state;
+    // Skip postponed / canceled games: ESPN marks them finished with a 0-0 score
+    if (/POSTPONED|CANCELED|CANCELLED|SUSPENDED/i.test(comp.status?.type?.name || ev.status?.type?.name || '')) continue;
     allGames.push({ ev, comp, state });
     if      (state === 'post')               lastCompleted = { ev, comp };
     else if (state === 'in')                 liveGame      = { ev, comp };
@@ -2426,7 +2428,7 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
        : ' <span class="winning-tag tied">Tied</span>') : '';
     const upsetRole = UPSET_BY_TEAM.get(String(tid));
     const upsetChip = upsetRole === 'fav' ? ' <span class="upset-chip">🚨 Upset alert</span>'
-                    : upsetRole === 'dog' ? ' <span class="upset-chip dog">🔥 Pulling the upset</span>' : '';
+                    : upsetRole === 'dog' ? ' <span class="upset-chip dog">🔥 Upset brewing</span>' : '';
     answerHTML      = `<div class="answer live">LIVE${upsetChip}</div>`;
     liveDetailsHTML = `
       <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
@@ -2745,7 +2747,8 @@ function liveGameInfo(ev) {
 }
 
 // ─── UPSET ALERTS ────────────────────────────────────────────────────────────
-// The favorite is losing late. Favorite = the betting favorite when ESPN has a
+// The underdog is ahead late, or tied / within 3 points in the final stretch
+// (it could happen, not that it has). Favorite = the betting favorite when ESPN has a
 // line (it already accounts for home court; looked up once the game starts).
 // With no line, any edge counts, no minimum gap: AP rank first (ranked beats
 // unranked), then ESPN BPI rank for every D1 team (#200 is favored over #300;
@@ -2820,13 +2823,20 @@ function upsetInfo(ev, sides, period) {
   if (!favId || sides.length !== 2) return null;
   const fav = sides.find(s => s.id === favId), dog = sides.find(s => s.id !== favId);
   if (!fav || !dog) return null;
-  const deficit = dog.score - fav.score;
-  if (deficit <= 0) return null;
+  // lead > 0: underdog ahead; 0: tied; < 0: underdog trailing
+  const lead = dog.score - fav.score;
   const halftime = /halftime/i.test(ev.status?.type?.description || ev.status?.type?.shortDetail || '');
-  const alert = IS_NFL ? (period >= 4 || (period >= 3 && deficit >= 3) || (halftime && deficit >= 10))
-              : IS_NBA ? (period >= 4 || (period >= 3 && deficit >= 5))
-              : (period >= 2 || halftime);
-  return alert ? { favId: fav.id, dogId: dog.id, favName: fav.name, dogName: dog.name, deficit } : null;
+  const finalStretch = IS_PRO ? period >= 4 : period >= 2;   // 4th quarter / 2nd half
+  let alert;
+  if (lead > 0) {
+    alert = IS_NFL ? (period >= 4 || (period >= 3 && lead >= 3) || (halftime && lead >= 10))
+          : IS_NBA ? (period >= 4 || (period >= 3 && lead >= 5))
+          : (period >= 2 || halftime);
+  } else {
+    // Tied or within one possession / a field goal late: the upset could still happen
+    alert = finalStretch && -lead <= 3;
+  }
+  return alert ? { favId: fav.id, dogId: dog.id, favName: fav.name, dogName: dog.name, lead } : null;
 }
 
 function renderMini(g) {
@@ -2847,7 +2857,7 @@ function renderMini(g) {
     </div>`;
   }).join('');
   const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
-  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset</span>'
+  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset alert</span>'
     : g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
   return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
@@ -2883,7 +2893,9 @@ function renderLiveStrip() {
     sub = `${x.name} ${x.score}–${y.score} ${y.name} · ${mineGame.ev.status?.type?.shortDetail || ''}`;
   } else if (upsets) {
     const u = games.find(g => g.upset).upset;
-    sub = `${u.dogName} up ${u.deficit} on ${u.favName}`;
+    sub = u.lead > 0 ? `${u.dogName} up ${u.lead} on ${u.favName}`
+        : u.lead === 0 ? `${u.dogName} tied with ${u.favName}`
+        : `${u.dogName} within ${-u.lead} of ${u.favName}`;
   } else if (featured.length) {
     sub = `${featured.length} Top 25 · ${games.length} total`;
   } else {
@@ -2910,7 +2922,7 @@ function renderLiveStrip() {
       </div>
       ${featured.length ? '' : `<div class="live-note">${IS_PRO ? 'None of your teams are playing and no upsets brewing. Closest games first.' : 'No Top 25 or your teams playing. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
-      <div class="live-legend">🚨 Upset alert = the favorite is losing late${IS_PRO ? '' : ' · BPI = ESPN power rank · unranked games sorted by BPI matchup'}</div>
+      <div class="live-legend">🚨 Upset alert = the underdog is ahead, tied, or within 3 late${IS_PRO ? '' : ' · BPI = ESPN power rank · unranked games sorted by BPI matchup'}</div>
     </div>`;
   el.hidden = false;
 }
