@@ -1013,6 +1013,11 @@
     /* Upset alerts + ties */
     .mini.upset { border-color: rgba(248,113,113,0.6); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
     .mini-tag.upset { color: #f87171; font-weight: 500; }
+    .mini-why { font-size: 0.6rem; color: #9aa0aa; margin-top: 0.12rem; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+    .mini-why b { color: #d6d9de; font-weight: 500; }
+    .upset-why { display: block; font-family: 'DM Sans', sans-serif; font-size: 0.68rem; color: #c9ccd2;
+      letter-spacing: 0.02em; text-transform: none; margin-top: 0.25rem; white-space: nowrap; }
     .mini { overflow: hidden; }
     .mini-foot { flex-wrap: wrap; row-gap: 0.15rem; }
     .upset-chip { font-family: 'DM Sans', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
@@ -2426,9 +2431,11 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
       ? (myScoreN > oppScoreN ? ' <span class="winning-tag">▲ Winning</span>'
        : myScoreN < oppScoreN ? ' <span class="winning-tag losing">▼ Losing</span>'
        : ' <span class="winning-tag tied">Tied</span>') : '';
-    const upsetRole = UPSET_BY_TEAM.get(String(tid));
-    const upsetChip = upsetRole === 'fav' ? ' <span class="upset-chip">🚨 Upset alert</span>'
-                    : upsetRole === 'dog' ? ' <span class="upset-chip dog">🔥 Upset brewing</span>' : '';
+    const upsetInfoT = UPSET_BY_TEAM.get(String(tid));
+    const upsetRole = upsetInfoT?.role;
+    const upsetWhy = upsetInfoT?.why ? `<span class="upset-why">${escHtml(upsetInfoT.why)}</span>` : '';
+    const upsetChip = upsetRole === 'fav' ? ` <span class="upset-chip">🚨 Upset alert</span>${upsetWhy}`
+                    : upsetRole === 'dog' ? ` <span class="upset-chip dog">🔥 Upset brewing</span>${upsetWhy}` : '';
     answerHTML      = `<div class="answer live">LIVE${upsetChip}</div>`;
     liveDetailsHTML = `
       <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
@@ -2756,6 +2763,23 @@ function liveGameInfo(ev) {
 const FAV_CACHE = new Map();       // game id -> favorite team id
 try { Object.entries(JSON.parse(sessionStorage.getItem('dww_fav_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_CACHE.set(k, v)); } catch {}
 const FAV_CHECKED = new Set();
+// game id -> the pregame betting line, e.g. "Wisconsin -14.5", shown with upset alerts
+const FAV_LINE = new Map();
+try { Object.entries(JSON.parse(sessionStorage.getItem('dww_line_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_LINE.set(k, v)); } catch {}
+function saveFavs() {
+  try {
+    sessionStorage.setItem('dww_fav_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_CACHE)));
+    sessionStorage.setItem('dww_line_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_LINE)));
+  } catch {}
+}
+// "Wisconsin -14.5" from the point spread; "Duke -400 moneyline" if there's no spread
+function lineText(o, ha, favName) {
+  const sp = Number(o?.spread);
+  if (Number.isFinite(sp) && sp !== 0) return `${favName} -${Math.abs(sp)}`;
+  const ml = (ha === 'home' ? o?.homeTeamOdds : o?.awayTeamOdds)?.moneyLine;
+  if (ml) return `${favName} ${ml > 0 ? '+' : ''}${ml} moneyline`;
+  return o?.details ? String(o.details) : '';
+}
 
 // The scoreboard drops the betting line once a game starts, so for live games
 // we look up the pregame line once from ESPN's small odds feed (~10 KB/game).
@@ -2775,13 +2799,18 @@ async function fetchLiveFavorites(events) {
         const it = ((await r.json()).items || []).find(x => x.homeTeamOdds?.favorite || x.awayTeamOdds?.favorite);
         if (!it) continue;
         const ha = it.homeTeamOdds?.favorite ? 'home' : 'away';
-        const id = String((e.competitions?.[0]?.competitors || []).find(c => c.homeAway === ha)?.team?.id || '');
-        if (id) { FAV_CACHE.set(e.id, id); found++; }
+        const t = (e.competitions?.[0]?.competitors || []).find(c => c.homeAway === ha)?.team;
+        const id = String(t?.id || '');
+        if (id) {
+          FAV_CACHE.set(e.id, id); found++;
+          const txt = lineText(it, ha, t?.shortDisplayName || t?.abbreviation || '');
+          if (txt) FAV_LINE.set(e.id, txt);
+        }
       } catch {}
     }
   };
   await Promise.all(Array.from({ length: 6 }, worker));
-  try { sessionStorage.setItem('dww_fav_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_CACHE))); } catch {}
+  saveFavs();
   return found;
 }
 let UPSET_BY_TEAM = new Map();     // team id -> 'fav' | 'dog' (for team cards)
@@ -2797,8 +2826,14 @@ function gameFavorite(ev, sides) {
   const comp = ev.competitions?.[0] || {};
   const odds = (comp.odds || [])[0];
   const byHA = ha => String((comp.competitors || []).find(c => c.homeAway === ha)?.team?.id || '');
-  let fav = odds?.homeTeamOdds?.favorite ? byHA('home') : odds?.awayTeamOdds?.favorite ? byHA('away') : '';
-  if (fav) { FAV_CACHE.set(ev.id, fav); return fav; }
+  const favHA = odds?.homeTeamOdds?.favorite ? 'home' : odds?.awayTeamOdds?.favorite ? 'away' : '';
+  const fav = favHA ? byHA(favHA) : '';
+  if (fav) {
+    FAV_CACHE.set(ev.id, fav);
+    const txt = lineText(odds, favHA, sides.find(s => s.id === fav)?.name || '');
+    if (txt) FAV_LINE.set(ev.id, txt);
+    return fav;
+  }
   if (FAV_CACHE.has(ev.id)) return FAV_CACHE.get(ev.id);
   const [a, b] = sides;
   if (!a || !b) return null;
@@ -2836,7 +2871,25 @@ function upsetInfo(ev, sides, period) {
     // Tied or within one possession / a field goal late: the upset could still happen
     alert = finalStretch && -lead <= 3;
   }
-  return alert ? { favId: fav.id, dogId: dog.id, favName: fav.name, dogName: dog.name, lead } : null;
+  return alert ? { favId: fav.id, dogId: dog.id, favName: fav.name, dogName: dog.name, lead, why: favoriteWhy(ev, fav, dog) } : null;
+}
+
+// Why this team is the favorite: the betting line, or what we used when there isn't one
+function favoriteWhy(ev, fav, dog) {
+  if (FAV_LINE.has(ev.id)) return `Line: ${FAV_LINE.get(ev.id)}`;
+  if (FAV_CACHE.has(ev.id)) return `Betting favorite: ${fav.name}`;
+  if (!IS_PRO) {
+    if (fav.rank && !dog.rank) return `No line · ${fav.name} AP #${fav.rank}, ${dog.name} unranked`;
+    if (fav.rank && dog.rank) return `No line · AP #${fav.rank} vs #${dog.rank}`;
+    if (fav.bpi && dog.bpi) return `No line · BPI #${fav.bpi} vs #${dog.bpi}`;
+    return `No line · ${dog.name} isn't D1`;
+  }
+  const rec = id => {
+    const c = (ev.competitions?.[0]?.competitors || []).find(x => String(x.team?.id) === id);
+    const r = (c?.records || []).find(x => x.type === 'total' || x.name === 'overall') || (c?.records || [])[0];
+    return r?.summary || '';
+  };
+  return `No line · records ${rec(fav.id)} vs ${rec(dog.id)}`;
 }
 
 function renderMini(g) {
@@ -2862,6 +2915,7 @@ function renderMini(g) {
   return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
     <div class="mini-foot"><span><span class="dot"></span>${status}</span>${tag}</div>
+    ${g.upset?.why ? `<div class="mini-why" title="${escHtml(g.upset.why)}">${escHtml(g.upset.why)}</div>` : ''}
   </a>`;
 }
 
@@ -2872,7 +2926,10 @@ function renderLiveStrip() {
 
   // Remember which of your teams are in an upset spot, for the team cards
   UPSET_BY_TEAM = new Map();
-  games.forEach(g => { if (g.upset) { UPSET_BY_TEAM.set(g.upset.favId, 'fav'); UPSET_BY_TEAM.set(g.upset.dogId, 'dog'); } });
+  games.forEach(g => { if (g.upset) {
+    UPSET_BY_TEAM.set(g.upset.favId, { role: 'fav', why: g.upset.why });
+    UPSET_BY_TEAM.set(g.upset.dogId, { role: 'dog', why: g.upset.why });
+  } });
   const upsets = games.filter(g => g.upset).length;
 
   // Featured: your teams first, then upset alerts, then by best AP rank, then closest
