@@ -2619,7 +2619,7 @@ function renderError(team, idx) {
 }
 
 // ─── LIVE NOW ────────────────────────────────────────────────────────────────
-// One scoreboard call (all of Division I, today) feeds the Live Now drawer,
+// The scoreboard (all of Division I, today) feeds the Live Now drawer,
 // the ⚡ markers in the team picker, and the ⚡ Live filter. Games outside the
 // Top 25 are ordered by ESPN's BPI (a KenPom-style power rating, free/public).
 let LIVE_IDS = new Set();
@@ -2681,14 +2681,23 @@ function setLiveTab(all) {
 
 async function loadLive() {
   try {
-    const [r] = await Promise.all([
-      fetch(IS_PRO ? `${API}/scoreboard` : `${API}/scoreboard?groups=50&limit=400`,
-        { cache: 'no-store' }),
+    // ESPN's default scoreboard keeps showing yesterday until late morning, so
+    // also ask for today's date (Eastern) and merge: morning tip-offs show up,
+    // and games running past midnight still come from the default call.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+    const base = IS_PRO ? `${API}/scoreboard?limit=200` : `${API}/scoreboard?groups=50&limit=400`;
+    const [r1, r2] = await Promise.all([
+      fetch(base, { cache: 'no-store' }),
+      fetch(`${base}&dates=${today}`, { cache: 'no-store' }),
       loadBPI(),
     ]);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    lastLiveEvents = (data.events || []).filter(e => e.status?.type?.state === 'in');
+    if (!r1.ok && !r2.ok) throw new Error(`HTTP ${r1.status}`);
+    const byId = new Map();
+    for (const r of [r1, r2]) {
+      if (!r.ok) continue;
+      for (const e of (await r.json()).events || []) byId.set(e.id, e);
+    }
+    lastLiveEvents = [...byId.values()].filter(e => e.status?.type?.state === 'in');
   } catch (e) {
     console.warn('Live scoreboard fetch failed:', e);
     return; // keep whatever was showing
