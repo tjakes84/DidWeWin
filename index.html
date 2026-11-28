@@ -946,6 +946,7 @@
       body { padding: 1.6rem 0.75rem 2rem; }
       header { margin-bottom: 1.8rem; }
       .live-strip { margin-top: -0.6rem; }
+      .live-strip + .finals-strip { margin-top: -1rem; }
       .live-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
       .grid { grid-template-columns: 1fr 1fr; gap: 0.65rem; }
 
@@ -1013,6 +1014,18 @@
 
     /* Upset alerts + ties */
     .mini.upset { border-color: rgba(248,113,113,0.6); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
+    /* Final scores drawer (ended earlier today / yesterday) */
+    .live-strip + .finals-strip { margin-top: -1rem; }
+    .finals-strip .live-title { color: #d6d9de; }
+    .finals-strip .live-count { background: #3a3f47; color: #fff; }
+    .finals-strip .live-tab.active { border-color: #d6d9de; color: #d6d9de; }
+    .mini.final .dot { display: none; }
+    .mini.final .mini-foot { color: #8b9099; }
+    .mini.upsetwon { border-color: rgba(251,191,36,0.5); }
+    .mini-tag.upset-won { color: var(--live); font-weight: 500; }
+    .finals-more { all: unset; cursor: pointer; display: block; margin: 0.65rem auto 0; font-size: 0.68rem;
+      letter-spacing: 0.06em; text-transform: uppercase; color: #9aa0aa; padding: 0.3rem 0.8rem;
+      border: 1px solid #2a2a2a; border-radius: 20px; }
     .mini-tag.upset { color: #f87171; font-weight: 500; }
     .mini-why { font-size: 0.62rem; color: #b4b9c2; margin-top: 0.15rem; line-height: 1.25; }
     .mini-why b { color: #d6d9de; font-weight: 500; }
@@ -1066,6 +1079,7 @@
 </header>
 
 <section class="live-strip" id="live-strip" hidden></section>
+<section class="live-strip finals-strip" id="finals-strip" hidden></section>
 
 <div class="grid" id="grid">
   <div class="empty-state">
@@ -2698,7 +2712,8 @@ async function loadLive() {
       if (!r.ok) continue;
       for (const e of (await r.json()).events || []) byId.set(e.id, e);
     }
-    lastLiveEvents = [...byId.values()].filter(e => e.status?.type?.state === 'in');
+    lastAllEvents = [...byId.values()];
+    lastLiveEvents = lastAllEvents.filter(e => e.status?.type?.state === 'in');
   } catch (e) {
     console.warn('Live scoreboard fetch failed:', e);
     return; // keep whatever was showing
@@ -2712,6 +2727,8 @@ async function loadLive() {
   renderLiveStrip();
   // Fill in betting favorites for games already in progress, then refresh the drawer
   fetchLiveFavorites(lastLiveEvents).then(n => { if (n) renderLiveStrip(); });
+  renderFinalsStrip();
+  loadFinalLines();
   if (changed) {
     // Refresh ⚡ markers without rebuilding the picker (keeps scroll position)
     document.querySelectorAll('[data-tid]').forEach(el => {
@@ -2926,9 +2943,10 @@ function renderMini(g) {
     </div>`;
   }).join('');
   const status = escHtml(g.ev.status?.type?.shortDetail || 'Live');
-  const tag = g.upset ? '<span class="mini-tag upset">🚨 Upset alert</span>'
+  const tag = g.final ? (g.upsetWon ? '<span class="mini-tag upset-won">🔥 Upset</span>' : (g.mine ? '<span>your team</span>' : ''))
+    : g.upset ? '<span class="mini-tag upset">🚨 Upset alert</span>'
     : g.close ? '<span class="mini-tag">🔥 close</span>' : (g.mine ? '<span>your team</span>' : '');
-  return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
+  return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''} ${g.final ? 'final' : ''} ${g.upsetWon ? 'upsetwon' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
     <div class="mini-foot"><span><span class="dot"></span>${status}</span>${tag}</div>
     ${g.line ? `<div class="mini-why" title="Pregame line: ${escHtml(g.line)}">${escHtml(g.line)}</div>` : ''}
@@ -2996,6 +3014,157 @@ function renderLiveStrip() {
       ${featured.length ? '' : `<div class="live-note">${IS_PRO ? 'None of your teams are playing and no upsets brewing. Closest games first.' : 'No Top 25, your teams or upset alerts right now. Best matchups first.'}</div>`}
       <div class="live-grid">${shown.map(renderMini).join('')}</div>
       <div class="live-legend">🚨 Upset alert = the underdog is ahead, tied, or within 3 late${IS_PRO ? '' : ' · BPI = ESPN power rank · unranked games sorted by BPI matchup'}</div>
+    </div>`;
+  el.hidden = false;
+}
+
+// ─── FINAL SCORES ─────────────────────────────────────────────────────────────
+// A second drawer under Live Now: games that ended earlier today, with a
+// Yesterday tab. Starts collapsed on every visit. Today's games come from the
+// same scoreboard call as Live Now; yesterday is fetched only when asked for.
+let lastAllEvents = [];
+let finalsOpen = false;
+let finalsDay = 'today';           // 'today' | 'yesterday'
+let finalsShowAll = false;
+let yesterdayEvents = null, yesterdayAt = 0, yesterdayLoading = false;
+let finalsShownEvents = [];
+
+function localYMD(d) { return d.toLocaleDateString('en-CA').replace(/-/g, ''); }
+
+function isFinalGame(e) {
+  const t = e.status?.type || e.competitions?.[0]?.status?.type || {};
+  return t.state === 'post' && !/POSTPONED|CANCELED|CANCELLED|SUSPENDED|FORFEIT/i.test(t.name || '');
+}
+
+function todaysFinals() {
+  const today = localYMD(new Date());
+  return lastAllEvents.filter(e => isFinalGame(e) && localYMD(new Date(e.date)) === today);
+}
+
+// Same tile data as a live game, plus who won and whether the favorite lost
+function finalGameInfo(ev) {
+  const g = liveGameInfo(ev);
+  g.final = true; g.close = false; g.upset = null;
+  const [a, b] = g.sides;
+  const winner = !b || a.score === b.score ? null : (a.score > b.score ? a : b);
+  const favId = g.sides.length === 2 ? gameFavorite(ev, g.sides) : null;
+  g.winner = winner;
+  g.loser = winner ? g.sides.find(x => x.id !== winner.id) : null;
+  g.upsetWon = !!(favId && winner && winner.id !== favId);
+  // How big an underdog the winner was (points), from the pregame line
+  g.dogBy = parseFloat((FAV_LINE.get(ev.id) || '').match(/by ([\d.]+)/)?.[1]) || 0;
+  g.myWin = null;
+  const mineIds = new Set(selectedTeams.map(t => String(t.id)));
+  const me = g.sides.find(x => mineIds.has(x.id));
+  if (me && winner) g.myWin = { name: me.name, won: me.id === winner.id, s: `${me.score}–${g.sides.find(x => x.id !== me.id)?.score}` };
+  return g;
+}
+
+function toggleFinals() {
+  finalsOpen = !finalsOpen;
+  renderFinalsStrip();
+  loadFinalLines();
+}
+
+function setFinalsDay(day) {
+  finalsDay = day;
+  finalsShowAll = false;
+  if (day === 'yesterday') loadYesterday();
+  renderFinalsStrip();
+  loadFinalLines();
+}
+
+function setFinalsShowAll(v) {
+  finalsShowAll = v;
+  renderFinalsStrip();
+  loadFinalLines();
+}
+
+async function loadYesterday() {
+  if (yesterdayLoading || (yesterdayEvents && Date.now() - yesterdayAt < 10 * 60 * 1000)) return;
+  yesterdayLoading = true;
+  try {
+    const y = localYMD(new Date(Date.now() - 864e5));
+    const base = IS_PRO ? `${API}/scoreboard?limit=200` : `${API}/scoreboard?groups=50&limit=400`;
+    const r = await fetch(`${base}&dates=${y}`, { cache: 'no-store' });
+    if (r.ok) { yesterdayEvents = (await r.json()).events || []; yesterdayAt = Date.now(); }
+  } catch (e) {
+    console.warn('Yesterday scoreboard fetch failed:', e);
+  }
+  yesterdayLoading = false;
+  renderFinalsStrip();
+  loadFinalLines();
+}
+
+// Pregame lines for the final-score tiles on screen (only while the drawer is open)
+function loadFinalLines() {
+  if (!finalsOpen || !finalsShownEvents.length) return;
+  fetchLiveFavorites(finalsShownEvents.slice(0, 80)).then(n => { if (n) renderFinalsStrip(); });
+}
+
+function renderFinalsStrip() {
+  const el = document.getElementById('finals-strip');
+  if (!el) return;
+  if (!lastAllEvents.length) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const todayList = todaysFinals();
+  const yList = yesterdayEvents ? yesterdayEvents.filter(isFinalGame) : null;
+  const evs = finalsDay === 'today' ? todayList : (yList || []);
+  const games = evs.map(finalGameInfo);
+
+  // Featured: your teams, then upsets (biggest underdog first), then Top 25;
+  // everything else by BPI matchup
+  const isFeatured = g => g.mine || g.ranked || g.upsetWon;
+  const featured = games.filter(isFeatured)
+    .sort((a, b) => (b.mine - a.mine) || (b.upsetWon - a.upsetWon) || ((b.upsetWon ? b.dogBy : 0) - (a.upsetWon ? a.dogBy : 0))
+      || (a.bestRank - b.bestRank) || (a.quality - b.quality));
+  const rest = games.filter(g => !isFeatured(g)).sort((a, b) => a.quality - b.quality);
+  const showAll = finalsShowAll || !featured.length;
+  const shown = showAll ? [...featured, ...rest] : featured;
+  finalsShownEvents = shown.map(g => g.ev);
+
+  // Collapsed bar: your teams' results first, else an upset we know from the line
+  const tg = todayList.map(finalGameInfo);
+  const mine = tg.filter(g => g.mine);
+  const ups = tg.filter(g => g.upsetWon && FAV_LINE.has(g.ev.id)).sort((a, b) => b.dogBy - a.dogBy);
+  let sub;
+  if (mine.length) {
+    sub = mine.filter(g => g.myWin).map(g => `${g.myWin.name} ${g.myWin.won ? 'W' : 'L'} ${g.myWin.s}`).join(' · ');
+  } else if (ups.length) {
+    sub = `🔥 ${ups[0].winner.name} upset ${ups[0].loser.name}${ups.length > 1 ? ` +${ups.length - 1} more` : ''}`;
+  } else {
+    sub = todayList.length ? 'Tap for scores · yesterday too' : 'None yet today · tap for yesterday';
+  }
+
+  const dayWord = finalsDay === 'today' ? 'today' : 'yesterday';
+  let content;
+  if (finalsDay === 'yesterday' && !yList) {
+    content = `<div class="live-note">Loading yesterday's games…</div>`;
+  } else if (!games.length) {
+    content = `<div class="live-note">No games ended ${dayWord}${finalsDay === 'today' ? ' yet' : ''}.</div>`;
+  } else {
+    content = `
+      ${featured.length ? '' : `<div class="live-note">No Top 25, your teams or upsets ${dayWord}. Best matchups first.</div>`}
+      <div class="live-grid">${shown.map(renderMini).join('')}</div>
+      ${!showAll && rest.length ? `<button class="finals-more" onclick="setFinalsShowAll(true)">Show all ${games.length} games</button>`
+        : finalsShowAll && featured.length ? `<button class="finals-more" onclick="setFinalsShowAll(false)">Show fewer</button>` : ''}`;
+  }
+
+  el.className = 'live-strip finals-strip' + (finalsOpen ? ' open' : '');
+  el.innerHTML = `
+    <button class="live-bar" onclick="toggleFinals()" aria-label="Show games that already ended">
+      <span class="live-title">🏁 Ended earlier today</span>
+      <span class="live-count">${todayList.length}</span>
+      <span class="live-sub">${escHtml(sub)}</span>
+      <span class="live-chev">▾</span>
+    </button>
+    <div class="live-body">
+      <div class="live-tabs">
+        <button class="live-tab ${finalsDay === 'today' ? 'active' : ''}" onclick="setFinalsDay('today')">Today (${todayList.length})</button>
+        <button class="live-tab ${finalsDay === 'yesterday' ? 'active' : ''}" onclick="setFinalsDay('yesterday')">Yesterday${yList ? ` (${yList.length})` : ''}</button>
+      </div>
+      ${content}
+      <div class="live-legend">${IS_PRO ? '' : 'Your teams, Top 25 and upsets first · '}🔥 Upset = the underdog won · lines are from before the game</div>
     </div>`;
   el.hidden = false;
 }
