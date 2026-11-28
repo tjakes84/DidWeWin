@@ -346,6 +346,7 @@
       margin-top: -0.25rem;
     }
     .live-opponent strong { color: rgba(255,255,255,0.8); }
+    .live-line { font-size: 0.72rem; color: rgba(255,255,255,0.55); margin-top: 0.15rem; }
 
     .winning-tag {
       font-family: 'DM Sans', sans-serif;
@@ -1013,8 +1014,7 @@
     /* Upset alerts + ties */
     .mini.upset { border-color: rgba(248,113,113,0.6); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
     .mini-tag.upset { color: #f87171; font-weight: 500; }
-    .mini-why { font-size: 0.6rem; color: #9aa0aa; margin-top: 0.12rem; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; }
+    .mini-why { font-size: 0.62rem; color: #b4b9c2; margin-top: 0.15rem; line-height: 1.25; }
     .mini-why b { color: #d6d9de; font-weight: 500; }
     .upset-why { display: block; font-family: 'DM Sans', sans-serif; font-size: 0.68rem; color: #c9ccd2;
       letter-spacing: 0.02em; text-transform: none; margin-top: 0.25rem; white-space: nowrap; }
@@ -2433,13 +2433,14 @@ function renderFront({ team, lastCompleted, liveGame, nextGame, recordStr, confR
        : ' <span class="winning-tag tied">Tied</span>') : '';
     const upsetInfoT = UPSET_BY_TEAM.get(String(tid));
     const upsetRole = upsetInfoT?.role;
-    const upsetWhy = upsetInfoT?.why ? `<span class="upset-why">${escHtml(upsetInfoT.why)}</span>` : '';
-    const upsetChip = upsetRole === 'fav' ? ` <span class="upset-chip">🚨 Upset alert</span>${upsetWhy}`
-                    : upsetRole === 'dog' ? ` <span class="upset-chip dog">🔥 Upset brewing</span>${upsetWhy}` : '';
+    const upsetChip = upsetRole === 'fav' ? ' <span class="upset-chip">🚨 Upset alert</span>'
+                    : upsetRole === 'dog' ? ' <span class="upset-chip dog">🔥 Upset brewing</span>' : '';
+    const lineTxt = FAV_LINE.get(String(liveGame.ev?.id)) || upsetInfoT?.why || '';
     answerHTML      = `<div class="answer live">LIVE${upsetChip}</div>`;
     liveDetailsHTML = `
       <div class="live-details">${myS} – ${oppS} · ${periodLabel(liveGame.comp)}${winBit}</div>
-      <div class="live-opponent">${atStr}${rankBit} <strong>${oppName}</strong></div>`;
+      <div class="live-opponent">${atStr}${rankBit} <strong>${oppName}</strong></div>
+      ${lineTxt ? `<div class="live-line">${escHtml(lineTxt)}</div>` : ''}`;
   } else if (lastCompleted) {
     const me  = getMe(lastCompleted.comp, tid);
     const won = me?.winner === true;
@@ -2751,11 +2752,15 @@ function liveGameInfo(ev) {
   const late = period >= (IS_PRO ? 4 : 2);
   const close = late && margin <= (IS_NFL ? 8 : 5);
   const upset = upsetInfo(ev, sides, period);
+  // Who was favored before tip-off: the betting line, or what we use when there isn't one
+  const favId = sides.length === 2 ? gameFavorite(ev, sides) : null;
+  const favS = sides.find(x => x.id === favId), dogS = sides.find(x => x.id !== favId);
+  const line = FAV_LINE.get(ev.id) || (favS && dogS ? favoriteWhy(ev, favS, dogS) : '');
   // Matchup quality: average BPI rank of both teams (non-D1 opponents count
   // as 400). A close second-half game moves up as if 40 spots better.
   const avgBpi = sides.reduce((sum, s) => sum + (s.bpi || 400), 0) / Math.max(1, sides.length);
   return {
-    ev, sides, mine, margin, close, upset,
+    ev, sides, mine, margin, close, upset, line,
     ranked: ranks.length > 0,
     bestRank: ranks.length ? Math.min(...ranks) : 99,
     quality: avgBpi - (close ? 40 : 0),
@@ -2774,26 +2779,28 @@ try { Object.entries(JSON.parse(sessionStorage.getItem('dww_fav_' + LEAGUE) || '
 const FAV_CHECKED = new Set();
 // game id -> the pregame betting line, e.g. "Wisconsin -14.5", shown with upset alerts
 const FAV_LINE = new Map();
-try { Object.entries(JSON.parse(sessionStorage.getItem('dww_line_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_LINE.set(k, v)); } catch {}
+try { Object.entries(JSON.parse(sessionStorage.getItem('dww_line2_' + LEAGUE) || '{}')).forEach(([k, v]) => FAV_LINE.set(k, v)); } catch {}
 function saveFavs() {
   try {
     sessionStorage.setItem('dww_fav_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_CACHE)));
-    sessionStorage.setItem('dww_line_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_LINE)));
+    sessionStorage.setItem('dww_line2_' + LEAGUE, JSON.stringify(Object.fromEntries(FAV_LINE)));
   } catch {}
 }
-// "Wisconsin -14.5" from the point spread; "Duke -400 moneyline" if there's no spread
+// Pregame line in plain words: "Wisconsin favored by 14.5" from the point spread,
+// "Duke favored (-400)" from the moneyline if there's no spread, "Even (pick'em)".
 function lineText(o, ha, favName) {
   const sp = Number(o?.spread);
-  if (Number.isFinite(sp) && sp !== 0) return `${favName} -${Math.abs(sp)}`;
+  if (Number.isFinite(sp) && sp !== 0) return `${favName} favored by ${Math.abs(sp)}`;
   const ml = (ha === 'home' ? o?.homeTeamOdds : o?.awayTeamOdds)?.moneyLine;
-  if (ml) return `${favName} ${ml > 0 ? '+' : ''}${ml} moneyline`;
+  if (ml) return `${favName} favored (${ml > 0 ? '+' : ''}${ml})`;
+  if (/even|pk|pick/i.test(String(o?.details || ''))) return "Even (pick'em)";
   return o?.details ? String(o.details) : '';
 }
 
 // The scoreboard drops the betting line once a game starts, so for live games
 // we look up the pregame line once from ESPN's small odds feed (~10 KB/game).
 async function fetchLiveFavorites(events) {
-  const need = events.filter(e => !FAV_CACHE.has(e.id) && !FAV_CHECKED.has(e.id) &&
+  const need = events.filter(e => !FAV_LINE.has(e.id) && !FAV_CHECKED.has(e.id) &&
     !(e.competitions?.[0]?.odds || []).length);
   if (!need.length) return 0;
   const path = IS_NFL ? 'football/leagues/nfl' : IS_NBA ? 'basketball/leagues/nba' : 'basketball/leagues/mens-college-basketball';
@@ -2885,20 +2892,20 @@ function upsetInfo(ev, sides, period) {
 
 // Why this team is the favorite: the betting line, or what we used when there isn't one
 function favoriteWhy(ev, fav, dog) {
-  if (FAV_LINE.has(ev.id)) return `Line: ${FAV_LINE.get(ev.id)}`;
-  if (FAV_CACHE.has(ev.id)) return `Betting favorite: ${fav.name}`;
+  if (FAV_LINE.has(ev.id)) return FAV_LINE.get(ev.id);
+  if (FAV_CACHE.has(ev.id)) return `${fav.name} favored`;
   if (!IS_PRO) {
-    if (fav.rank && !dog.rank) return `No line · ${fav.name} AP #${fav.rank}, ${dog.name} unranked`;
-    if (fav.rank && dog.rank) return `No line · AP #${fav.rank} vs #${dog.rank}`;
-    if (fav.bpi && dog.bpi) return `No line · BPI #${fav.bpi} vs #${dog.bpi}`;
-    return `No line · ${dog.name} isn't D1`;
+    if (fav.rank && !dog.rank) return `${fav.name} favored · no line (AP #${fav.rank} vs unranked)`;
+    if (fav.rank && dog.rank) return `${fav.name} favored · no line (AP #${fav.rank} vs #${dog.rank})`;
+    if (fav.bpi && dog.bpi) return `${fav.name} favored · no line (BPI #${fav.bpi} vs #${dog.bpi})`;
+    return `${fav.name} favored · no line (${dog.name} isn't D1)`;
   }
   const rec = id => {
     const c = (ev.competitions?.[0]?.competitors || []).find(x => String(x.team?.id) === id);
     const r = (c?.records || []).find(x => x.type === 'total' || x.name === 'overall') || (c?.records || [])[0];
     return r?.summary || '';
   };
-  return `No line · records ${rec(fav.id)} vs ${rec(dog.id)}`;
+  return `${fav.name} favored · no line (${rec(fav.id)} vs ${rec(dog.id)})`;
 }
 
 function renderMini(g) {
@@ -2924,7 +2931,7 @@ function renderMini(g) {
   return `<a class="mini ${g.mine ? 'mine' : ''} ${g.upset ? 'upset' : ''}" href="${escHtml(link)}" target="_blank" rel="noopener">
     ${rows}
     <div class="mini-foot"><span><span class="dot"></span>${status}</span>${tag}</div>
-    ${g.upset?.why ? `<div class="mini-why" title="${escHtml(g.upset.why)}">${escHtml(g.upset.why)}</div>` : ''}
+    ${g.line ? `<div class="mini-why" title="Pregame line: ${escHtml(g.line)}">${escHtml(g.line)}</div>` : ''}
   </a>`;
 }
 
